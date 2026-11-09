@@ -16,18 +16,27 @@ interface LedController {
     /** Link state of every known device, keyed by address. */
     val connectionStates: StateFlow<Map<String, ConnectionState>>
 
-    /** Sends [command] to the device, or to every member of the group. Safe to call on every drag event. */
-    fun send(target: ControlTarget, command: Command)
+    /**
+     * Sends [command] to the device, or to every member of the group. Safe to call on every drag event.
+     * Pass [record] false for short-lived light, such as music or a test flash, so the saved state
+     * stays the user's. The caller then sends the real state again when it ends.
+     */
+    fun send(target: ControlTarget, command: Command, record: Boolean = true)
 
     /** Sends [commands] in order. */
-    fun send(target: ControlTarget, commands: List<Command>)
+    fun send(target: ControlTarget, commands: List<Command>, record: Boolean = true)
 
     /**
      * Like [send], but suspends until every member has the commands, or [timeoutMillis] passes.
      * Returns true only if every member got every command. For the tile, widget and shortcuts,
      * which must finish their work before the system stops them.
      */
-    suspend fun sendAndAwait(target: ControlTarget, commands: List<Command>, timeoutMillis: Long = 10_000): Boolean
+    suspend fun sendAndAwait(
+        target: ControlTarget,
+        commands: List<Command>,
+        timeoutMillis: Long = 10_000,
+        record: Boolean = true,
+    ): Boolean
 
     /**
      * Keeps every known device connected until the session is closed, so the first command is instant.

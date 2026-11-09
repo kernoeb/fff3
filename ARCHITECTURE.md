@@ -55,9 +55,9 @@ In a composable, create a ViewModel from it with `appViewModel { MyViewModel(it.
 ```kotlin
 interface LedController {
     val connectionStates: StateFlow<Map<String, ConnectionState>>   // by device address
-    fun send(target: ControlTarget, command: Command)
-    fun send(target: ControlTarget, commands: List<Command>)
-    suspend fun sendAndAwait(target: ControlTarget, commands: List<Command>, timeoutMillis: Long = 10_000): Boolean
+    fun send(target: ControlTarget, command: Command, record: Boolean = true)
+    fun send(target: ControlTarget, commands: List<Command>, record: Boolean = true)
+    suspend fun sendAndAwait(target: ControlTarget, commands: List<Command>, timeoutMillis: Long = 10_000, record: Boolean = true): Boolean
     fun openSession(): LedSession   // keeps all known strips connected until close()
     fun retryNow()
 }
@@ -67,7 +67,7 @@ sealed interface ControlTarget { data class Device(val address: String); data cl
 
 - `send` never blocks. Call it on every drag event: drag values (colour, brightness, speed, mic sensitivity) are coalesced, newest wins, at most one frame every `BleTuning.MIN_FRAME_INTERVAL_MS` (35 ms), and the final value is always sent.
 - Groups fan out to every member. A command a member's family cannot do is skipped for that member.
-- Each send also updates `DeviceStateStore`, so screens show the new state.
+- Each send also updates `DeviceStateStore`, so screens show the new state. Short-lived light (music, calibration flashes, wire order test, identify blinks) passes `record = false`, then sends the real state again, recorded, when it ends.
 - Links open on demand and close `BleTuning.IDLE_DISCONNECT_MS` after the last write, unless a session is open. `MainActivity` holds a session while visible.
 - `ControlTarget.encode()` and `ControlTarget.decode()` give a stable string for intents and widget settings.
 
@@ -112,7 +112,7 @@ interface LedRepository {
 interface DeviceStateStore {
     val states: StateFlow<Map<String, LedState>>   // what we last sent; strips cannot report state
     val lastControlled: StateFlow<String?>
-    fun record(address: String, command: Command); fun forget(address: String)
+    fun record(address: String, command: Command); fun forget(address: String); fun flush()
 }
 ```
 

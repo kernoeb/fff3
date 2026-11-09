@@ -12,8 +12,8 @@ class RestoreCommandsTest {
 
     @Test
     fun unknownStateComesBackAsWarmWhite() {
-        assertEquals(listOf(Command.Brightness(100), warmWhite), restoreCommands(null))
-        assertEquals(listOf(Command.Brightness(30), warmWhite), restoreCommands(LedState(brightness = 30)))
+        assertEquals(listOf(Command.Brightness(100), warmWhite, Command.Power(true)), restoreCommands(null))
+        assertEquals(listOf(Command.Brightness(30), warmWhite, Command.Power(true)), restoreCommands(LedState(brightness = 30)))
     }
 
     @Test
