@@ -9,12 +9,6 @@ object LightTiming {
     /** Used until the link has measured its own write time. */
     const val DEFAULT_LINK_S = 0.060
 
-    /** The fine-tune the user found by eye, to cover the radio and strip time that nothing measured. */
-    const val UNMEASURED_LIGHT_DELAY_MS = 50
-
-    /** The fine-tune used until the user moves it: none once the camera has measured the strips. */
-    fun defaultLightDelayMs(measured: Boolean): Int = if (measured) 0 else UNMEASURED_LIGHT_DELAY_MS
-
     /**
      * The camera-measured light delay of these strips, or null if none is measured. Music sends one
      * colour stream to all of them, so it can only follow their average.

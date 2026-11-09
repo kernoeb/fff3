@@ -52,9 +52,6 @@ data class MusicUiState(
 ) {
     val running: Boolean get() = status is MusicStatus.Running
     val hasStrips: Boolean get() = options.isNotEmpty()
-
-    /** The fine-tune in use: the saved one, or the default for measured or unmeasured strips. */
-    val lightDelayMs: Int get() = settings.lightDelayMs ?: LightTiming.defaultLightDelayMs(measuredLightMs != null)
 }
 
 class MusicViewModel(
@@ -137,7 +134,7 @@ class MusicViewModel(
     fun setLightDelay(millis: Int) = music.updateSettings { it.copy(lightDelayMs = millis) }
 
     fun saveLightDelay() {
-        val millis = music.settings.value.lightDelayMs ?: return
+        val millis = music.settings.value.lightDelayMs
         viewModelScope.launch { repository.updateSettings { it.copy(musicLightDelayMs = millis) } }
     }
 }

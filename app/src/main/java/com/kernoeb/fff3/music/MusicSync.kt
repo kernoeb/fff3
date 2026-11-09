@@ -11,14 +11,13 @@ import kotlinx.coroutines.flow.update
 /**
  * What music sync plays on. [target] null means every known strip.
  * [sensitivity] 0..1: higher reacts to quieter sound and softer beats.
- * [lightDelayMs] is the saved beat lock fine-tune: positive makes the lights later. Null follows
- * [LightTiming.defaultLightDelayMs].
+ * [lightDelayMs] is the saved beat lock fine-tune: positive makes the lights later.
  */
 data class MusicSettings(
     val target: ControlTarget? = null,
     val style: MusicStyle = MusicStyle.Pulse,
     val sensitivity: Float = 0.5f,
-    val lightDelayMs: Int? = null,
+    val lightDelayMs: Int = 50,
 )
 
 /** Beat lock state for the screen. [bpm] is 0 while listening. */

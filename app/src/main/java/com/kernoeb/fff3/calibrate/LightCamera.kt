@@ -100,8 +100,8 @@ class LightCamera(context: Context) {
     /** Called on the camera thread for each frame while the camera is ready. */
     @Volatile var onSample: ((LightDelayMath.Frame) -> Unit)? = null
 
-    private var thread: HandlerThread? = null
-    private var handler: Handler? = null
+    @Volatile private var thread: HandlerThread? = null
+    @Volatile private var handler: Handler? = null
 
     // Camera thread only.
     private var setup: Setup? = null
@@ -123,6 +123,11 @@ class LightCamera(context: Context) {
 
     fun open() {
         if (thread != null) return
+        // A run cut off by close() could not set these back, and the thread is not started yet.
+        mode = Mode.Aim
+        exposure = 0L
+        frames = 0
+        countedSince = 0L
         _state.value = State.Opening
         val started = HandlerThread("fff3-camera").apply { start() }
         thread = started
@@ -132,11 +137,12 @@ class LightCamera(context: Context) {
     /** Closes the camera and waits for its thread, so no sample arrives after this returns. */
     fun close() {
         val current = thread ?: return
-        handler?.post(::closeOnThread)
-        current.quitSafely()
-        current.join(CLOSE_WAIT_MS)
+        val looper = handler
         thread = null
         handler = null
+        looper?.post(::closeOnThread)
+        current.quitSafely()
+        current.join(CLOSE_WAIT_MS)
         _state.value = State.Closed
         _preview.value = null
     }
@@ -148,7 +154,8 @@ class LightCamera(context: Context) {
         }
     }
 
-    private val executor = Executor { command -> handler?.post(command) }
+    // Once the thread is gone, run the callback here: a late onOpened must still close its camera.
+    private val executor = Executor { command -> if (handler?.post(command) != true) command.run() }
 
     private fun openOnThread() {
         val chosen = try {

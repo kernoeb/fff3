@@ -21,7 +21,7 @@ import java.time.DayOfWeek
  */
 object AppDataCodec {
 
-    private const val VERSION = 5
+    private const val VERSION = 6
 
     fun write(data: AppData, output: OutputStream) {
         val out = DataOutputStream(output)
@@ -47,7 +47,7 @@ object AppDataCodec {
         out.writeBoolean(data.settings.accentFollowsStrip)
         out.writeBoolean(data.settings.hapticsEnabled)
         out.writeUTF(data.settings.musicSource.name)
-        out.writeNullableInt(data.settings.musicLightDelayMs)
+        out.writeInt(data.settings.musicLightDelayMs)
         out.writeList(data.settings.outputDelaysMs.entries.toList()) { (output, millis) ->
             writeUTF(output.name)
             writeInt(millis)
@@ -88,18 +88,16 @@ object AppDataCodec {
             hapticsEnabled = if (version >= 2) inp.readBoolean() else true,
             musicSource = if (version >= 3) MusicSource.valueOf(inp.readUTF()) else MusicSource.PhoneAudio,
             musicLightDelayMs = when {
-                version >= 5 -> inp.readNullableInt()
-                // Version 4 always stored a value. 50 was the default then, so it keeps following the default.
-                version == 4 -> inp.readInt().takeIf { it != OLD_DEFAULT_LIGHT_DELAY_MS }
-                else -> null
+                version >= 6 || version == 4 -> inp.readInt()
+                // Version 5 stored null for a fine-tune the user never moved.
+                version == 5 -> inp.readNullableInt() ?: Settings().musicLightDelayMs
+                else -> Settings().musicLightDelayMs
             },
             outputDelaysMs = if (version >= 4) inp.readList { AudioOutput.valueOf(readUTF()) to readInt() }.toMap() else emptyMap(),
             lightDelaysMs = if (version >= 5) inp.readList { readUTF() to readInt() }.toMap() else emptyMap(),
         )
         return AppData(devices, groups, favourites, settings)
     }
-
-    private const val OLD_DEFAULT_LIGHT_DELAY_MS = 50
 }
 
 /** Last known state per device address. Same versioning rules as [AppDataCodec]. */

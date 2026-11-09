@@ -454,7 +454,7 @@ private fun BeatLockPanel(
                     }
                 }
             }
-            val delay = state.lightDelayMs
+            val delay = state.settings.lightDelayMs
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(stringResource(R.string.music_light_delay), style = MaterialTheme.typography.titleSmall)
                 Text(

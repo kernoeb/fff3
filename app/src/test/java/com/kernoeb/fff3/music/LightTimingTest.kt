@@ -13,10 +13,4 @@ class LightTimingTest {
         assertEquals(40, LightTiming.measuredMs(delays, listOf("A")))
         assertNull(LightTiming.measuredMs(delays, listOf("C")))
     }
-
-    @Test
-    fun fineTuneDefaultsToZeroOnceMeasured() {
-        assertEquals(0, LightTiming.defaultLightDelayMs(measured = true))
-        assertEquals(50, LightTiming.defaultLightDelayMs(measured = false))
-    }
 }

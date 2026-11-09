@@ -1,6 +1,7 @@
 package com.kernoeb.fff3.ui.calibrate
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
@@ -87,9 +88,7 @@ fun CalibrateLightScreen(initialAddress: String?, onBack: () -> Unit) {
     val cameraState by viewModel.camera.state.collectAsStateWithLifecycle()
     val activity = LocalActivity.current
 
-    var granted by remember {
-        mutableStateOf(context.checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
-    }
+    var granted by remember { mutableStateOf(hasCamera(context)) }
     var denied by rememberSaveable { mutableStateOf(false) }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
         granted = ok
@@ -105,18 +104,18 @@ fun CalibrateLightScreen(initialAddress: String?, onBack: () -> Unit) {
 
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle, granted) {
-        if (!granted) return@DisposableEffect onDispose {}
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_START -> viewModel.openCamera()
-                Lifecycle.Event.ON_STOP -> viewModel.closeCamera()
+                // The user may have allowed the camera in the app settings meanwhile.
+                Lifecycle.Event.ON_START -> if (granted) viewModel.openCamera() else granted = hasCamera(context)
+                Lifecycle.Event.ON_STOP -> if (granted) viewModel.closeCamera()
                 else -> Unit
             }
         }
         lifecycle.addObserver(observer)
         onDispose {
             lifecycle.removeObserver(observer)
-            viewModel.closeCamera()
+            if (granted) viewModel.closeCamera()
         }
     }
 
@@ -340,6 +339,9 @@ private fun PermissionCard(denied: Boolean, onAllow: () -> Unit, onOpenSettings:
         }
     }
 }
+
+private fun hasCamera(context: Context): Boolean =
+    context.checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
 
 @Composable
 private fun cameraText(state: LightCamera.State): String = when (state) {
