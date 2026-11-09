@@ -3,6 +3,7 @@ package com.kernoeb.fff3.ui.theme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp as lerpColor
 import androidx.compose.ui.graphics.toArgb
 import com.kernoeb.fff3.protocol.Rgb
 import kotlin.math.min
@@ -58,6 +59,44 @@ fun stripDarkColorScheme(seed: Color): ColorScheme {
         surfaceContainer = neutral(0.20),
         surfaceContainerHigh = neutral(0.24),
         surfaceContainerHighest = neutral(0.28),
+    )
+}
+
+/** Blends every colour that [stripDarkColorScheme] sets. Cheap: no gamut search, safe on every frame. */
+fun lerp(from: ColorScheme, to: ColorScheme, fraction: Float): ColorScheme {
+    fun mix(pick: ColorScheme.() -> Color) = lerpColor(from.pick(), to.pick(), fraction)
+    return to.copy(
+        primary = mix { primary },
+        onPrimary = mix { onPrimary },
+        primaryContainer = mix { primaryContainer },
+        onPrimaryContainer = mix { onPrimaryContainer },
+        inversePrimary = mix { inversePrimary },
+        secondary = mix { secondary },
+        onSecondary = mix { onSecondary },
+        secondaryContainer = mix { secondaryContainer },
+        onSecondaryContainer = mix { onSecondaryContainer },
+        tertiary = mix { tertiary },
+        onTertiary = mix { onTertiary },
+        tertiaryContainer = mix { tertiaryContainer },
+        onTertiaryContainer = mix { onTertiaryContainer },
+        background = mix { background },
+        onBackground = mix { onBackground },
+        surface = mix { surface },
+        onSurface = mix { onSurface },
+        surfaceVariant = mix { surfaceVariant },
+        onSurfaceVariant = mix { onSurfaceVariant },
+        surfaceTint = mix { surfaceTint },
+        inverseSurface = mix { inverseSurface },
+        inverseOnSurface = mix { inverseOnSurface },
+        outline = mix { outline },
+        outlineVariant = mix { outlineVariant },
+        surfaceBright = mix { surfaceBright },
+        surfaceDim = mix { surfaceDim },
+        surfaceContainerLowest = mix { surfaceContainerLowest },
+        surfaceContainerLow = mix { surfaceContainerLow },
+        surfaceContainer = mix { surfaceContainer },
+        surfaceContainerHigh = mix { surfaceContainerHigh },
+        surfaceContainerHighest = mix { surfaceContainerHighest },
     )
 }
 

@@ -15,6 +15,8 @@ sealed interface Route {
 
     /** Rename, wire order, schedules and forget, for one strip. */
     data class StripSettings(val address: String) : Route
+    /** Phone music mode: the phone listens and drives the strips. */
+    data object Music : Route
 
     /** A stable string form, used to save the back stack and in intents from shortcuts, tile and widget. */
     fun encode(): String = when (this) {
@@ -23,6 +25,7 @@ sealed interface Route {
         AddDevice -> "add-device"
         Settings -> "settings"
         is StripSettings -> "strip-settings/$address"
+        Music -> "music"
     }
 
     companion object {
@@ -33,6 +36,7 @@ sealed interface Route {
             value == "settings" -> Settings
             value.startsWith("strip-settings/") ->
                 value.removePrefix("strip-settings/").takeIf { it.isNotEmpty() }?.let(::StripSettings)
+            value == "music" -> Music
             value.startsWith("control/") -> ControlTarget.decode(value.removePrefix("control/"))?.let(::Control)
             else -> null
         }

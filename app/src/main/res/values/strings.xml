@@ -51,6 +51,27 @@
     <string name="control_white">White</string>
     <string name="control_warm_white">Warm white</string>
     <string name="control_members">Strips in this group</string>
+    <string name="control_power">Power</string>
+    <string name="control_mode_colour">Colour</string>
+    <string name="control_mode_effects">Effects</string>
+    <string name="control_mode_mic">Mic</string>
+    <string name="control_wheel_description">Colour wheel. Drag to pick a colour.</string>
+    <string name="control_swatch_white">Cool white</string>
+    <string name="control_swatch_colour">Colour %1$s</string>
+    <string name="control_speed">Speed</string>
+    <string name="control_mic_title">Controller microphone</string>
+    <string name="control_mic_body">The strip listens with its own microphone and moves to the sound.</string>
+    <string name="control_mic_mode">Mode</string>
+    <string name="control_mic_sensitivity">Sensitivity</string>
+    <string name="control_music">Music from this phone</string>
+    <string name="control_save_favourite">Save as favourite</string>
+    <string name="control_favourite_title">Save as favourite</string>
+    <string name="control_favourite_name">Name</string>
+    <string name="control_favourite_saved">Saved to favourites</string>
+    <string name="control_favourite_nothing">Pick a colour or an effect first.</string>
+
+    <string name="music_title">Music</string>
+    <string name="music_placeholder">Phone music mode is not ready yet.</string>
 
     <string name="add_title">Add a strip</string>
     <string name="add_pair_title">Find with Android</string>

@@ -128,11 +128,11 @@ fun stripDarkColorScheme(seed: Color): ColorScheme
 fun Rgb.toColor(): Color; fun Color.toRgb(): Rgb
 ```
 
-The theme is always dark. Accents come from `seed`; the app root passes the colour of the strip used last (`AppViewModel.accentSeed`, debounced). You can nest `Fff3Theme` to tint one part of the UI with one strip's colour. Pass a settled colour, not every drag event.
+The theme is always dark. Accents come from `seed`; the app root passes the colour of the strip used last (`AppViewModel.accentSeed`, debounced). You can nest `Fff3Theme` to tint one part of the UI with one strip's colour. Pass a settled colour, not every drag event. The OKLCH maths runs once per seed; animation frames only blend two ready schemes.
 
 ### Navigation: `ui/navigation/`
 
-`Route` is `Home`, `Control(target)`, `AddDevice`, `Settings` or `StripSettings(address)` (rename, timers, wire order, forget: open it from a strip overflow menu). `AppNavigation.kt` maps routes to screens with Navigation 3. `Navigator.navigate(route)` and `Navigator.back()` change the back stack.
+`Route` is `Home`, `Control(target)`, `AddDevice`, `Settings`, `StripSettings(address)` (rename, timers, wire order, forget: open it from a strip overflow menu) or `Music` (phone music mode). `AppNavigation.kt` maps routes to screens with Navigation 3. `Navigator.navigate(route)` and `Navigator.back()` change the back stack.
 
 ## Where new work plugs in
 
