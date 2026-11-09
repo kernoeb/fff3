@@ -1,24 +1,48 @@
 package com.kernoeb.fff3.music
 
+import com.kernoeb.fff3.ble.BleTuning
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 /** How far ahead the beat clock is read, so a light change shows when its beat is heard. */
 object LightTiming {
 
-    /** Used until the link has measured its own write time. */
+    /** Used for a strip with no camera value until the link has measured its own write time. */
     const val DEFAULT_LINK_S = 0.060
 
-    /**
-     * The camera-measured light delay of these strips, or null if none is measured. Music sends one
-     * colour stream to all of them, so it can only follow their average.
-     */
-    fun measuredMs(delays: Map<String, Int>, addresses: List<String>): Int? =
-        addresses.mapNotNull { delays[it] }.takeIf { it.isNotEmpty() }?.average()?.roundToInt()
+    /** Used until the queue has measured its own wait: half a frame interval. */
+    const val DEFAULT_QUEUE_WAIT_MS = (BleTuning.MIN_FRAME_INTERVAL_MS / 2).toInt()
 
     /**
-     * All values in seconds. [link] is the time from send until the strip shows the colour (measured
-     * with the camera, or else only the write time), [capture] how stale the audio is when analysed,
+     * Seconds from `controller.send` until the strips show the colour. [cameraMs] holds each target
+     * strip's camera-measured delay, or null. A camera value starts at the Bluetooth write, so the
+     * [queueWaitMs] before that write is added. A strip with no camera value uses [writeMs].
+     * Negative times mean not measured yet.
+     */
+    fun linkSeconds(cameraMs: List<Int?>, queueWaitMs: Int, writeMs: Int): Double {
+        val fallback = if (writeMs >= 0) writeMs / 1000.0 else DEFAULT_LINK_S
+        val queue = if (queueWaitMs >= 0) queueWaitMs else DEFAULT_QUEUE_WAIT_MS
+        val perStrip = cameraMs.map { if (it != null) (it + queue) / 1000.0 else fallback }
+        // All strips get the same colour at the same time, so one lead serves them all. The median puts
+        // 2 strips equally far off, and one odd strip in a bigger group cannot pull it.
+        return median(perStrip) ?: fallback
+    }
+
+    /** What the music screen shows: null unless every target strip has a camera value. */
+    fun measuredMs(delays: Map<String, Int>, addresses: List<String>): Int? =
+        if (addresses.isEmpty() || addresses.any { it !in delays }) null
+        else median(addresses.map { delays.getValue(it).toDouble() })?.roundToInt()
+
+    private fun median(values: List<Double>): Double? {
+        if (values.isEmpty()) return null
+        val sorted = values.sorted()
+        val mid = sorted.size / 2
+        return if (sorted.size % 2 == 1) sorted[mid] else (sorted[mid - 1] + sorted[mid]) / 2
+    }
+
+    /**
+     * All values in seconds. [link] is the time from send until the strip shows the colour
+     * ([linkSeconds]), [capture] how stale the audio is when analysed,
      * [output] how long the phone takes to play captured sound (lights must wait for it), and
      * [lightDelay] the user's fine-tune (positive makes the lights later).
      */

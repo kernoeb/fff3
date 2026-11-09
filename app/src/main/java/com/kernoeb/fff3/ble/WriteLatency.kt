@@ -1,8 +1,8 @@
 package com.kernoeb.fff3.ble
 
 /**
- * Rolling median of the time from `LedController.send` to a finished write, over every strip.
- * The music beat clock fires this much early. Thread safe.
+ * Rolling median of a write time over every strip, for example from `LedController.send` to a
+ * finished write. The music beat clock fires this much early. Thread safe.
  */
 class WriteLatency(private val size: Int = 31) {
     private val samples = LongArray(size)

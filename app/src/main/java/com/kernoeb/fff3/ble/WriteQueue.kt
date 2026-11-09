@@ -39,6 +39,8 @@ internal class WriteQueue(
     private val maxPending: Int = BleTuning.MAX_PENDING_COMMANDS,
     /** Called with the nanoseconds from enqueue to the last frame written, for each sent command. */
     private val onSent: (Long) -> Unit = {},
+    /** Called with the nanoseconds from enqueue to the start of the last frame's write, for each sent command. */
+    private val onWriteStarted: (Long) -> Unit = {},
     private val write: suspend (ByteArray) -> WriteOutcome,
 ) {
 
@@ -124,6 +126,7 @@ internal class WriteQueue(
     }
 
     private suspend fun send(item: Item): Boolean {
+        var lastStart = item.enqueuedAt
         for (frame in item.frames) {
             var busy = 0
             var failed = 0
@@ -135,6 +138,7 @@ internal class WriteQueue(
                 when (write(frame)) {
                     WriteOutcome.Sent -> {
                         lastWriteStart = start
+                        lastStart = start
                         break
                     }
                     WriteOutcome.Busy -> {
@@ -148,6 +152,7 @@ internal class WriteQueue(
                 }
             }
         }
+        onWriteStarted((lastStart - item.enqueuedAt).inWholeNanoseconds)
         onSent(item.enqueuedAt.elapsedNow().inWholeNanoseconds)
         return true
     }

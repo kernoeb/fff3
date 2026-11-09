@@ -50,11 +50,14 @@ class AppContainer(context: Context) {
     val bluetooth: BluetoothEnvironment by lazy { BluetoothEnvironment(appContext) }
 
     val controller: LedController by lazy {
-        BleLedController(appContext, bluetooth, repository, deviceStates, bleScope, linkLatency, frameWrites).also(clockSync::watch)
+        BleLedController(appContext, bluetooth, repository, deviceStates, bleScope, linkLatency, queueWait, frameWrites).also(clockSync::watch)
     }
 
     /** How long a colour takes from `controller.send` to the strip, for the music beat clock. */
     val linkLatency: WriteLatency by lazy { WriteLatency() }
+
+    /** How long a command waits in the write queue before its Bluetooth write, for the music beat clock. */
+    val queueWait: WriteLatency by lazy { WriteLatency() }
 
     /** When each frame reaches the Bluetooth stack, for the camera light delay calibration. */
     val frameWrites: FrameWrites by lazy { FrameWrites() }

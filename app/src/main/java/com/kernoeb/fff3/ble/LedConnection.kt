@@ -47,6 +47,7 @@ class LedConnection internal constructor(
     private val environment: BluetoothEnvironment,
     parentScope: CoroutineScope,
     latency: WriteLatency? = null,
+    queueWait: WriteLatency? = null,
     private val frameWrites: FrameWrites? = null,
 ) {
     private val scope = CoroutineScope(parentScope.coroutineContext + SupervisorJob(parentScope.coroutineContext[Job]))
@@ -55,7 +56,9 @@ class LedConnection internal constructor(
     val state: StateFlow<ConnectionState> = _state.asStateFlow()
 
     private val link = MutableStateFlow<GattLink?>(null)
-    private val queue = WriteQueue(scope, onSent = { latency?.record(it) }) { frame -> link.filterNotNull().first().write(frame) }
+    private val queue = WriteQueue(scope, onSent = { latency?.record(it) }, onWriteStarted = { queueWait?.record(it) }) { frame ->
+        link.filterNotNull().first().write(frame)
+    }
     private val retrySignal = Channel<Unit>(Channel.CONFLATED)
 
     private val lock = Any()

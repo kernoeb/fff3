@@ -23,8 +23,8 @@ import kotlin.math.roundToInt
  * Reads [source] on its own thread, analyses it and calls [onColor] about 30 times a second
  * with the colour to show. [onFailure] runs once, on that thread, if the source stops working.
  *
- * Beat lock reads its clock ahead by the measured delays: [measuredLightMs] for the strips (from the
- * camera calibration, else [linkLatency], which only covers the write), and for
+ * Beat lock reads its clock ahead by the measured delays: for the strips, [cameraDelaysMs] (one per
+ * target strip, null if not measured) plus [queueWait], else [linkLatency], which only covers the write; for
  * phone audio the output delay, from [outputDelaysMs] or measured with the microphone and given
  * back through [onOutputDelay] to be saved.
  */
@@ -34,7 +34,8 @@ class MusicEngine(
     private val source: AudioSource,
     private val baseColor: Rgb?,
     private val linkLatency: WriteLatency,
-    private val measuredLightMs: Int?,
+    private val queueWait: WriteLatency,
+    private val cameraDelaysMs: List<Int?>,
     outputDelaysMs: Map<AudioOutput, Int>,
     private val onOutputDelay: (AudioOutput, Int) -> Unit,
     private val onColor: (Rgb) -> Unit,
@@ -145,8 +146,7 @@ class MusicEngine(
 
                 val lag = (System.nanoTime() - source.lastSampleNanos) / 1e9
                 captureLag = if (captureLag < 0) lag else captureLag + (lag - captureLag) * CAPTURE_SMOOTHING
-                val linkMillis = measuredLightMs ?: linkLatency.medianMillis
-                val link = if (linkMillis >= 0) linkMillis / 1000.0 else LightTiming.DEFAULT_LINK_S
+                val link = LightTiming.linkSeconds(cameraDelaysMs, queueWait.medianMillis, linkLatency.medianMillis)
                 var latencyChanged = handleCommands(tracker)
                 if (outputChanged) {
                     outputChanged = false
@@ -195,7 +195,7 @@ class MusicEngine(
                     loggedAt = now
                     val relocked = tracker.lockCount != loggedLocks
                     loggedLocks = tracker.lockCount
-                    logBeat(tracker, if (relocked) tracker.lastReason else null)
+                    logBeat(tracker, if (relocked) tracker.lastReason else null, link)
                 }
 
                 // The link sends one colour per slot: keep it free just before a beat, so the beat goes out at once.
@@ -214,15 +214,15 @@ class MusicEngine(
     }
 
     /** One line a second, to read with `adb logcat -s fff3-beat` after playing real music. */
-    private fun logBeat(tracker: BeatTracker, relock: RelockReason?) {
+    private fun logBeat(tracker: BeatTracker, relock: RelockReason?, link: Double) {
         Log.d(
             LOG_TAG,
             String.format(
                 Locale.ROOT,
-                "t=%.0f est=%.1f conf=%.2f short=%.1f locked=%.2f shown=%d state=%s coast=%b novelty=%.1f challenge=%.1f%s",
+                "t=%.0f est=%.1f conf=%.2f short=%.1f locked=%.2f shown=%d state=%s coast=%b novelty=%.1f challenge=%.1f queue=%d link=%.0f%s",
                 tracker.time, tracker.heardBpm, tracker.heardConfidence, tracker.shortBpm, tracker.bpm,
                 tracker.displayBpm, tracker.state, tracker.coasting, tracker.novelty,
-                tracker.challengeSeconds, if (relock != null) " relock=$relock" else "",
+                tracker.challengeSeconds, queueWait.medianMillis, link * 1000, if (relock != null) " relock=$relock" else "",
             ),
         )
     }

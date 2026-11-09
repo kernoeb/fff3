@@ -102,6 +102,8 @@ class LightCamera(context: Context) {
 
     @Volatile private var thread: HandlerThread? = null
     @Volatile private var handler: Handler? = null
+    /** Main thread only: the last thread close() let go, which a new open() waits for. */
+    private var closing: HandlerThread? = null
 
     // Camera thread only.
     private var setup: Setup? = null
@@ -123,29 +125,42 @@ class LightCamera(context: Context) {
 
     fun open() {
         if (thread != null) return
-        // A run cut off by close() could not set these back, and the thread is not started yet.
-        mode = Mode.Aim
-        exposure = 0L
-        frames = 0
-        countedSince = 0L
         _state.value = State.Opening
+        val previous = closing
         val started = HandlerThread("fff3-camera").apply { start() }
         thread = started
-        handler = Handler(started.looper).also { it.post(::openOnThread) }
+        val own = Handler(started.looper)
+        // Once that thread is gone, run the callback here: a late onOpened must still close its camera.
+        executor = Executor { command -> if (!started.isAlive || !own.post(command)) command.run() }
+        handler = own.also {
+            it.post {
+                // The last camera thread may still be closing: wait for it here, not on the main thread.
+                previous?.join(CLOSE_WAIT_MS)
+                mode = Mode.Aim
+                useHighSpeed = true
+                exposure = 0L
+                frames = 0
+                countedSince = 0L
+                openOnThread()
+            }
+        }
     }
 
-    /** Closes the camera and waits for its thread, so no sample arrives after this returns. */
+    /** Closes the camera on its own thread without waiting. No sample or state arrives from it after this. */
     fun close() {
         val current = thread ?: return
         val looper = handler
         thread = null
         handler = null
+        closing = current
         looper?.post(::closeOnThread)
         current.quitSafely()
-        current.join(CLOSE_WAIT_MS)
         _state.value = State.Closed
         _preview.value = null
     }
+
+    /** True on the thread of the camera that is open now, false on one that close() let go. */
+    private val isCurrent: Boolean get() = thread === Thread.currentThread()
 
     fun setMode(value: Mode) {
         handler?.post {
@@ -154,8 +169,8 @@ class LightCamera(context: Context) {
         }
     }
 
-    // Once the thread is gone, run the callback here: a late onOpened must still close its camera.
-    private val executor = Executor { command -> if (handler?.post(command) != true) command.run() }
+    /** Runs camera callbacks on the thread of the open() that asked for them. */
+    @Volatile private var executor = Executor { it.run() }
 
     private fun openOnThread() {
         val chosen = try {
@@ -177,19 +192,19 @@ class LightCamera(context: Context) {
         try {
             manager.openCamera(chosen.id, executor, object : CameraDevice.StateCallback() {
                 override fun onOpened(camera: CameraDevice) {
-                    if (thread == null) return camera.close()
+                    if (!isCurrent) return camera.close()
                     device = camera
                     createSession()
                 }
 
                 override fun onDisconnected(camera: CameraDevice) {
                     camera.close()
-                    if (device === camera) fail(Failure.Unavailable)
+                    if (isCurrent && device === camera) fail(Failure.Unavailable)
                 }
 
                 override fun onError(camera: CameraDevice, error: Int) {
                     camera.close()
-                    if (device === camera || device == null) fail(Failure.Unavailable)
+                    if (isCurrent && (device === camera || device == null)) fail(Failure.Unavailable)
                 }
             })
         } catch (e: Exception) {
@@ -252,12 +267,14 @@ class LightCamera(context: Context) {
     }
 
     private fun createSession() {
+        if (!isCurrent) return
         val camera = device ?: return
         val s = setup ?: return
+        val looper = handler ?: return
         val highSpeed = useHighSpeed && s.highSpeedSize != null
         val size = if (highSpeed) s.highSpeedSize else s.regularSize
         val gl = reader ?: try {
-            GlReader(handler!!, ::onFrame).also { reader = it }
+            GlReader(looper, ::onFrame).also { reader = it }
         } catch (e: Exception) {
             Log.w(TAG, "Cannot set up OpenGL", e)
             return fail(Failure.Unavailable)
@@ -270,13 +287,14 @@ class LightCamera(context: Context) {
         val type = if (highSpeed) SessionConfiguration.SESSION_HIGH_SPEED else SessionConfiguration.SESSION_REGULAR
         val config = SessionConfiguration(type, listOf(output), executor, object : CameraCaptureSession.StateCallback() {
             override fun onConfigured(created: CameraCaptureSession) {
-                if (device !== camera) return created.close()
+                if (!isCurrent || device !== camera) return created.close()
                 session = created
                 Log.i(TAG, "Session ${size.width}x${size.height}, high speed $highSpeed")
                 if (!startRepeating() && highSpeed) retryRegular(created)
             }
 
             override fun onConfigureFailed(failed: CameraCaptureSession) {
+                if (!isCurrent || device !== camera) return failed.close()
                 if (highSpeed) retryRegular(failed) else fail(Failure.Unavailable)
             }
         })
@@ -351,6 +369,7 @@ class LightCamera(context: Context) {
     }
 
     private fun onFrame(timestamp: Long, read: GlReader.Read) {
+        if (!isCurrent) return
         val s = setup ?: return
         val highSpeed = session is CameraConstrainedHighSpeedCaptureSession
         val now = SystemClock.elapsedRealtimeNanos()
@@ -384,7 +403,7 @@ class LightCamera(context: Context) {
 
     private fun fail(reason: Failure) {
         closeOnThread()
-        _state.value = State.Failed(reason)
+        if (isCurrent) _state.value = State.Failed(reason)
     }
 
     private class Setup(

@@ -219,16 +219,7 @@ class CalibrateLightViewModel(
     }
 
     private fun restore(target: ControlTarget, state: LedState?) {
-        val commands = buildList {
-            state?.brightness?.let { add(Command.Brightness(it)) }
-            when {
-                state?.effectId != null -> add(Command.Effect(state.effectId, state.speed))
-                state?.sceneId != null -> add(Command.Scene(state.sceneId))
-                state?.color != null -> add(Command.Color(state.color))
-            }
-            if (state?.power == false) add(Command.Power(false))
-        }
-        if (commands.isNotEmpty()) controller.send(target, commands)
+        controller.send(target, restoreCommands(state))
     }
 
     private class Flash(val sentAt: Long, val from: Level, val to: Level)
@@ -250,3 +241,19 @@ class CalibrateLightViewModel(
         private const val MIN_KEPT = 12
     }
 }
+
+/**
+ * Puts a strip back after the flashes, which left it red or blue at full brightness. What fff3 does
+ * not know comes back as warm white at full brightness, so the strip is never left on a flash colour.
+ */
+internal fun restoreCommands(state: LedState?): List<Command> = buildList {
+    add(Command.Brightness(state?.brightness ?: 100))
+    when {
+        state?.effectId != null -> add(Command.Effect(state.effectId, state.speed))
+        state?.sceneId != null -> add(Command.Scene(state.sceneId))
+        else -> add(Command.Color(state?.color ?: Rgb.fromKelvin(WARM_WHITE_K)))
+    }
+    if (state?.power == false) add(Command.Power(false))
+}
+
+private const val WARM_WHITE_K = 2700

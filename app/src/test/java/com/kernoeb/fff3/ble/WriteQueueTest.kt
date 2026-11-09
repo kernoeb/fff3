@@ -193,6 +193,23 @@ class WriteQueueTest {
         assertTrue(queue.idle.value)
     }
 
+    @Test
+    fun reportsTheWaitBeforeEachWrite() = runTest {
+        val waits = mutableListOf<Long>()
+        val queue = WriteQueue(
+            scope = backgroundScope,
+            timeSource = testScheduler.timeSource,
+            onWriteStarted = { waits += it / 1_000_000 },
+        ) { WriteOutcome.Sent }
+        queue.enqueue(color(1), DomProtocol.encode(color(1)))
+        runCurrent()
+        delay(10)
+        // The slot is busy until 35 ms, so this colour waits 25 ms.
+        queue.enqueue(color(2), DomProtocol.encode(color(2)))
+        settle()
+        assertEquals(listOf(0L, 25L), waits)
+    }
+
     // The writer runs in backgroundScope, which advanceUntilIdle does not wait for.
     private fun TestScope.settle() {
         advanceTimeBy(10_000)
