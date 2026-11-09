@@ -78,6 +78,7 @@ fun HomeScreen(
     onOpenControl: (ControlTarget) -> Unit,
     onAddDevice: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenStripSettings: (address: String) -> Unit,
 ) {
     val viewModel = appViewModel {
         HomeViewModel(it.repository, it.controller, it.deviceStates, it.bluetooth, it.pairing)
@@ -225,6 +226,7 @@ fun HomeScreen(
                         onBrightness = { viewModel.setBrightness(target, it) },
                         actions = listOf(
                             CardAction(stringResource(R.string.action_rename)) { dialog = HomeDialog.RenameDevice(item.device) },
+                            CardAction(stringResource(R.string.strip_settings_title)) { onOpenStripSettings(item.device.address) },
                             CardAction(stringResource(R.string.home_forget)) { viewModel.forget(item.device) },
                         ),
                         modifier = Modifier.padding(horizontal = 16.dp).animateItem(),

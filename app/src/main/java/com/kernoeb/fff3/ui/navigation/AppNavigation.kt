@@ -33,6 +33,7 @@ fun AppNavigation(navigator: Navigator, modifier: Modifier = Modifier) {
                     onOpenControl = { target -> navigator.navigate(Route.Control(target)) },
                     onAddDevice = { navigator.navigate(Route.AddDevice) },
                     onOpenSettings = { navigator.navigate(Route.Settings) },
+                    onOpenStripSettings = { navigator.navigate(Route.StripSettings(it)) },
                 )
             }
             entry<Route.Control> { route ->
