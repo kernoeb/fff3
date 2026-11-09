@@ -9,6 +9,7 @@ import androidx.navigation3.ui.NavDisplay
 import com.kernoeb.fff3.ui.add.AddDeviceScreen
 import com.kernoeb.fff3.ui.control.ControlScreen
 import com.kernoeb.fff3.ui.home.HomeScreen
+import com.kernoeb.fff3.ui.music.MusicScreen
 import com.kernoeb.fff3.ui.settings.SettingsScreen
 
 /**
@@ -41,6 +42,9 @@ fun AppNavigation(navigator: Navigator, modifier: Modifier = Modifier) {
             }
             entry<Route.Settings> {
                 SettingsScreen(onBack = navigator::back)
+            }
+            entry<Route.Music> { route ->
+                MusicScreen(initialTarget = route.target, onBack = navigator::back)
             }
         },
     )
