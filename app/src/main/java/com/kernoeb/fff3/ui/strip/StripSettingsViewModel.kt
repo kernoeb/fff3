@@ -3,6 +3,7 @@ package com.kernoeb.fff3.ui.strip
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kernoeb.fff3.ble.ClockSyncer
+import com.kernoeb.fff3.ble.CompanionPairing
 import com.kernoeb.fff3.ble.ControlTarget
 import com.kernoeb.fff3.ble.LedController
 import com.kernoeb.fff3.data.DeviceStateStore
@@ -44,11 +45,13 @@ class StripSettingsViewModel(
     private val stripSettings: StripSettingsStore,
     private val clockSync: ClockSyncer,
     private val deviceStates: DeviceStateStore,
+    private val pairing: CompanionPairing,
 ) : ViewModel() {
 
     private val target = ControlTarget.Device(address)
     private val testing = MutableStateFlow<Rgb?>(null)
     private var testJob: Job? = null
+    private var restoreColour: Rgb? = null
 
     private val _messages = MutableSharedFlow<StripMessage>(extraBufferCapacity = 1)
     val messages: SharedFlow<StripMessage> = _messages
@@ -94,12 +97,18 @@ class StripSettingsViewModel(
     }
 
     fun setWireOrder(order: ChannelOrder) {
-        viewModelScope.launch {
-            stripSettings.update(address) { it.copy(wireOrder = order) }
-            if (!controller.sendAndAwait(target, listOf(Command.WireOrder(order)))) {
-                _messages.tryEmit(StripMessage.NotReached)
-            }
-        }
+        viewModelScope.launch { sendWireOrder(listOf(Command.WireOrder(order))) }
+    }
+
+    /** Saves the wire order of [commands], and puts the old one back if the strip never got them. */
+    private suspend fun sendWireOrder(commands: List<Command>): Boolean {
+        val order = commands.filterIsInstance<Command.WireOrder>().single().order
+        val previous = state.value.settings.wireOrder
+        stripSettings.update(address) { it.copy(wireOrder = order) }
+        if (controller.sendAndAwait(target, commands)) return true
+        stripSettings.update(address) { it.copy(wireOrder = previous) }
+        _messages.tryEmit(StripMessage.NotReached)
+        return false
     }
 
     /**
@@ -107,35 +116,34 @@ class StripSettingsViewModel(
      * The user compares the strip with the colour on screen.
      */
     fun testWireOrder(order: ChannelOrder) {
+        // A test cut short has not put the colour back yet, so the state holds a test colour.
+        if (testJob?.isActive != true) restoreColour = state.value.color
         testJob?.cancel()
-        val restore = state.value.color
         testJob = viewModelScope.launch {
+            val self = coroutineContext[Job]
             try {
-                stripSettings.update(address) { it.copy(wireOrder = order) }
-                val reached = controller.sendAndAwait(
-                    target,
-                    listOf(Command.WireOrder(order), Command.Power(false), Command.Power(true)),
-                )
-                if (!reached) {
-                    _messages.tryEmit(StripMessage.NotReached)
-                    return@launch
-                }
+                if (!sendWireOrder(listOf(Command.WireOrder(order), Command.Power(false), Command.Power(true)))) return@launch
                 for (colour in TEST_COLOURS) {
                     testing.value = colour
                     controller.send(target, Command.Color(colour))
                     delay(TEST_STEP_MS)
                 }
-                restore?.let { controller.send(target, Command.Color(it)) }
             } finally {
                 testing.value = null
+                // Also runs when the screen closes mid-test. A newer test restores the colour itself.
+                if (testJob === self) restoreColour?.let { controller.send(target, Command.Color(it)) }
             }
         }
     }
 
+    /** Same clean-up as a confirmed forget on Home: no undo here. */
     fun forget(onDone: () -> Unit) {
         viewModelScope.launch {
+            val associationId = repository.snapshot.value?.devices?.firstOrNull { it.address == address }?.associationId
             repository.removeDevice(address)
             stripSettings.forget(address)
+            deviceStates.forget(address)
+            associationId?.let(pairing::forget)
             onDone()
         }
     }

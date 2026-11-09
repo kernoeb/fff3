@@ -37,10 +37,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -226,6 +228,7 @@ fun ManageFavouritesSheet(
     onDelete: (Favourite) -> Unit,
 ) {
     val haptics = LocalHapticFeedback.current
+    val latest by rememberUpdatedState(favourites)
     var order by remember { mutableStateOf(favourites) }
     var draggingId by remember { mutableStateOf<String?>(null) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
@@ -256,70 +259,73 @@ fun ManageFavouritesSheet(
                 )
             }
             order.forEach { favourite ->
-                val dragging = favourite.id == draggingId
-                Surface(
-                    color = if (dragging) MaterialTheme.colorScheme.surfaceContainerHighest else Color.Transparent,
-                    shape = RoundedCornerShape(20.dp),
-                    shadowElevation = if (dragging) 6.dp else 0.dp,
-                    modifier = Modifier
-                        .padding(horizontal = 8.dp)
-                        .zIndex(if (dragging) 1f else 0f)
-                        .graphicsLayer { translationY = if (dragging) dragOffset else 0f }
-                        .onSizeChanged { rowHeight = it.height.coerceAtLeast(1) },
-                ) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                // Keyed by id, so the dragged row keeps its gesture when it changes place.
+                key(favourite.id) {
+                    val dragging = favourite.id == draggingId
+                    Surface(
+                        color = if (dragging) MaterialTheme.colorScheme.surfaceContainerHighest else Color.Transparent,
+                        shape = RoundedCornerShape(20.dp),
+                        shadowElevation = if (dragging) 6.dp else 0.dp,
+                        modifier = Modifier
+                            .padding(horizontal = 8.dp)
+                            .zIndex(if (dragging) 1f else 0f)
+                            .graphicsLayer { translationY = if (dragging) dragOffset else 0f }
+                            .onSizeChanged { rowHeight = it.height.coerceAtLeast(1) },
                     ) {
-                        FavouriteSwatch(favourite, size = 36)
-                        Spacer(Modifier.width(16.dp))
-                        Text(
-                            favourite.name,
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        TextButton(onClick = { onRename(favourite) }) { Text(stringResource(R.string.action_rename)) }
-                        TextButton(onClick = { onDelete(favourite) }) { Text(stringResource(R.string.action_delete)) }
-                        IconButton(
-                            onClick = {},
-                            modifier = Modifier.pointerInput(favourite.id) {
-                                detectDragGestures(
-                                    onDragStart = {
-                                        haptics.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
-                                        draggingId = favourite.id
-                                        dragOffset = 0f
-                                    },
-                                    onDragEnd = {
-                                        draggingId = null
-                                        dragOffset = 0f
-                                        onReorder(order.map { it.id })
-                                    },
-                                    onDragCancel = {
-                                        draggingId = null
-                                        dragOffset = 0f
-                                        order = favourites
-                                    },
-                                    onDrag = { change, amount ->
-                                        change.consume()
-                                        dragOffset += amount.y
-                                        val index = order.indexOfFirst { it.id == favourite.id }
-                                        // Swap with a neighbour once the row has moved past half of it.
-                                        if (dragOffset > rowHeight / 2f && index < order.lastIndex) {
-                                            order = order.moved(index, index + 1)
-                                            dragOffset -= rowHeight
-                                            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                                        } else if (dragOffset < -rowHeight / 2f && index > 0) {
-                                            order = order.moved(index, index - 1)
-                                            dragOffset += rowHeight
-                                            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                                        }
-                                    },
-                                )
-                            },
+                        Row(
+                            Modifier.fillMaxWidth().padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(painterResource(R.drawable.ic_drag_indicator), stringResource(R.string.home_favourites_move))
+                            FavouriteSwatch(favourite, size = 36)
+                            Spacer(Modifier.width(16.dp))
+                            Text(
+                                favourite.name,
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            TextButton(onClick = { onRename(favourite) }) { Text(stringResource(R.string.action_rename)) }
+                            TextButton(onClick = { onDelete(favourite) }) { Text(stringResource(R.string.action_delete)) }
+                            IconButton(
+                                onClick = {},
+                                modifier = Modifier.pointerInput(favourite.id) {
+                                    detectDragGestures(
+                                        onDragStart = {
+                                            haptics.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
+                                            draggingId = favourite.id
+                                            dragOffset = 0f
+                                        },
+                                        onDragEnd = {
+                                            draggingId = null
+                                            dragOffset = 0f
+                                            onReorder(order.map { it.id })
+                                        },
+                                        onDragCancel = {
+                                            draggingId = null
+                                            dragOffset = 0f
+                                            order = latest
+                                        },
+                                        onDrag = { change, amount ->
+                                            change.consume()
+                                            dragOffset += amount.y
+                                            val index = order.indexOfFirst { it.id == favourite.id }
+                                            // Swap with a neighbour once the row has moved past half of it.
+                                            if (dragOffset > rowHeight / 2f && index < order.lastIndex) {
+                                                order = order.moved(index, index + 1)
+                                                dragOffset -= rowHeight
+                                                haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                            } else if (dragOffset < -rowHeight / 2f && index > 0) {
+                                                order = order.moved(index, index - 1)
+                                                dragOffset += rowHeight
+                                                haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                            }
+                                        },
+                                    )
+                                },
+                            ) {
+                                Icon(painterResource(R.drawable.ic_drag_indicator), stringResource(R.string.home_favourites_move))
+                            }
                         }
                     }
                 }

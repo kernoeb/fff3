@@ -6,6 +6,8 @@ import com.kernoeb.fff3.data.Favourite
 import com.kernoeb.fff3.data.LedState
 import com.kernoeb.fff3.protocol.Command
 import com.kernoeb.fff3.protocol.Rgb
+import com.kernoeb.fff3.ui.home.findAllStripsGroup
+import com.kernoeb.fff3.ui.home.previewColour
 import com.kernoeb.fff3.ui.navigation.Route
 
 /**
@@ -40,7 +42,7 @@ data class SystemTarget(
                 null -> Unit
             }
             // A group of every strip (the usual "All") gives one Control screen instead of Home.
-            val allGroup = data.groups.firstOrNull { all.isNotEmpty() && it.memberAddresses.toSet() == all.toSet() }
+            val allGroup = findAllStripsGroup(all, data.groups)
             val targets = when {
                 allGroup != null -> listOf(ControlTarget.Group(allGroup.id))
                 all.size == 1 -> listOf(ControlTarget.Device(all.single()))
@@ -51,9 +53,19 @@ data class SystemTarget(
     }
 }
 
-/** The colour a favourite shows, if it sets one. */
-val Favourite.color: Rgb? get() = commands.firstNotNullOfOrNull { (it as? Command.Color)?.rgb }
+/** Known strips that [target] covers, every strip when null. A missing device or group gives none. */
+fun AppData.addressesOf(target: ControlTarget?): List<String> {
+    val known = devices.map { it.address }
+    return when (target) {
+        null -> known
+        is ControlTarget.Device -> listOf(target.address).filter { it in known }
+        is ControlTarget.Group -> groups.firstOrNull { it.id == target.id }?.memberAddresses.orEmpty().filter { it in known }
+    }
+}
 
-/** A favourite tapped outside the app should light the strips even when they are off. */
+/** The colour a favourite shows, if it sets one. */
+val Favourite.color: Rgb? get() = previewColour()
+
+/** A colour sent to a strip that is off shows nothing, so turn it on unless the favourite sets power. */
 fun Favourite.commandsFromOutside(): List<Command> =
     if (commands.any { it is Command.Power }) commands else listOf(Command.Power(true)) + commands

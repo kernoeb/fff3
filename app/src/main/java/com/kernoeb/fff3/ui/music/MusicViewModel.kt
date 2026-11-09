@@ -12,6 +12,7 @@ import com.kernoeb.fff3.music.MusicStatus
 import com.kernoeb.fff3.music.MusicStyle
 import com.kernoeb.fff3.music.MusicSync
 import com.kernoeb.fff3.protocol.Rgb
+import com.kernoeb.fff3.system.addressesOf
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -67,11 +68,7 @@ class MusicViewModel(
         val chosen = settings.target.takeIf { target -> options.any { it.target == target } }
         // Read once, not collected: while music plays the colours change 30 times a second.
         val states = deviceStates.states.value
-        val addresses = when (chosen) {
-            null -> data.devices.map { it.address }
-            is ControlTarget.Device -> listOf(chosen.address)
-            is ControlTarget.Group -> data.groups.firstOrNull { it.id == chosen.id }?.memberAddresses.orEmpty()
-        }
+        val addresses = data.addressesOf(chosen)
         MusicUiState(
             loaded = true,
             options = options,

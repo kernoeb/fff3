@@ -17,7 +17,9 @@ import com.kernoeb.fff3.data.Favourite
 import com.kernoeb.fff3.data.KnownDevice
 import com.kernoeb.fff3.data.LedRepository
 import com.kernoeb.fff3.data.LedState
+import com.kernoeb.fff3.data.StripSettingsStore
 import com.kernoeb.fff3.protocol.Command
+import com.kernoeb.fff3.system.commandsFromOutside
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
@@ -75,6 +77,7 @@ class HomeViewModel(
     private val deviceStates: DeviceStateStore,
     private val bluetooth: BluetoothEnvironment,
     private val pairing: CompanionPairing,
+    private val stripSettings: StripSettingsStore,
 ) : ViewModel() {
 
     private val _events = Channel<HomeEvent>(Channel.BUFFERED)
@@ -125,8 +128,7 @@ class HomeViewModel(
     fun applyFavourite(favourite: Favourite, target: HomeTarget) {
         val data = repository.snapshot.value ?: return
         val recipients = favouriteRecipients(favourite, target, data.devices, data.groups)
-        // Turn the strips on too: a colour sent to a strip that is off shows nothing.
-        val commands = listOf(Command.Power(true)) + favourite.commands
+        val commands = favourite.commandsFromOutside()
         recipients.forEach { controller.send(ControlTarget.Device(it), commands) }
         _events.trySend(
             if (recipients.isEmpty()) HomeEvent.NothingToApply(favourite.name)
@@ -180,6 +182,7 @@ class HomeViewModel(
     fun confirmForget(event: HomeEvent.Forgotten) {
         deviceStates.forget(event.device.address)
         event.device.associationId?.let(pairing::forget)
+        viewModelScope.launch { stripSettings.forget(event.device.address) }
     }
 
     fun saveGroup(id: String?, name: String, memberAddresses: List<String>) {

@@ -75,7 +75,7 @@ import java.util.Locale
 @Composable
 fun StripSettingsScreen(address: String, onBack: () -> Unit, onForgotten: () -> Unit) {
     val viewModel = appViewModel(key = "strip-settings/$address") {
-        StripSettingsViewModel(address, it.repository, it.controller, it.stripSettings, it.clockSync, it.deviceStates)
+        StripSettingsViewModel(address, it.repository, it.controller, it.stripSettings, it.clockSync, it.deviceStates, it.pairing)
     }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }

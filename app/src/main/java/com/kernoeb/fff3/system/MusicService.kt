@@ -17,7 +17,6 @@ import com.kernoeb.fff3.appContainer
 import com.kernoeb.fff3.ble.ConnectionState
 import com.kernoeb.fff3.ble.ControlTarget
 import com.kernoeb.fff3.ble.LedSession
-import com.kernoeb.fff3.data.AppData
 import com.kernoeb.fff3.data.LedState
 import com.kernoeb.fff3.music.MicEngine
 import com.kernoeb.fff3.music.MusicStatus
@@ -32,6 +31,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -99,7 +99,7 @@ class MusicService : Service() {
         if (session == null) session = container.controller.openSession()
         run = scope.launch {
             val data = container.repository.snapshot.filterNotNull().first()
-            val addresses = addressesOf(data, target)
+            val addresses = data.addressesOf(target)
             if (addresses.isEmpty()) {
                 finish(StopReason.StripsGone)
                 return@launch
@@ -127,17 +127,19 @@ class MusicService : Service() {
     /** Stops when the strips are removed, Bluetooth goes off, or no strip is reachable for a while. */
     private suspend fun watchStrips(target: ControlTarget?) {
         combine(container.repository.snapshot.filterNotNull(), container.controller.connectionStates) { data, links ->
-            addressesOf(data, target).map { links[it] ?: ConnectionState.Idle }
-        }.collectLatest { links ->
+            val states = data.addressesOf(target).map { links[it] ?: ConnectionState.Idle }
             when {
-                links.isEmpty() -> finish(StopReason.StripsGone)
-                links.all { it == ConnectionState.BluetoothOff } -> finish(StopReason.BluetoothOff)
-                links.all { it == ConnectionState.PermissionMissing } -> finish(StopReason.BluetoothPermissionMissing)
-                links.none { it == ConnectionState.Connected } -> {
-                    delay(UNREACHABLE_STOP_MS)
-                    finish(StopReason.StripsGone)
-                }
+                states.isEmpty() -> StopReason.StripsGone to 0L
+                states.all { it == ConnectionState.BluetoothOff } -> StopReason.BluetoothOff to 0L
+                states.all { it == ConnectionState.PermissionMissing } -> StopReason.BluetoothPermissionMissing to 0L
+                states.none { it == ConnectionState.Connected } -> StopReason.StripsGone to UNREACHABLE_STOP_MS
+                else -> null
             }
+        }.distinctUntilChanged().collectLatest { stop ->
+            // Retries change the link state often; only a new outcome restarts the wait.
+            if (stop == null) return@collectLatest
+            delay(stop.second)
+            finish(stop.first)
         }
     }
 
@@ -166,16 +168,6 @@ class MusicService : Service() {
         stopReason = reason
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
-    }
-
-    private fun addressesOf(data: AppData, target: ControlTarget?): List<String> {
-        val known = data.devices.map { it.address }
-        return when (target) {
-            null -> known
-            is ControlTarget.Device -> listOf(target.address).filter { it in known }
-            is ControlTarget.Group -> data.groups.firstOrNull { it.id == target.id }
-                ?.memberAddresses.orEmpty().filter { it in known }
-        }
     }
 
     private fun notification(target: ControlTarget?): Notification {
@@ -220,12 +212,25 @@ class MusicService : Service() {
 
         /** Starts music sync on [target], or on every strip when null. Call while the app is visible. */
         fun start(context: Context, target: ControlTarget?) {
+            // startForeground throws without these, and a service that never reaches it crashes the app.
+            val missing = when {
+                !context.isGranted(Manifest.permission.RECORD_AUDIO) -> StopReason.MicPermissionMissing
+                !context.isGranted(Manifest.permission.BLUETOOTH_CONNECT) -> StopReason.BluetoothPermissionMissing
+                else -> null
+            }
+            if (missing != null) {
+                context.appContainer.music.setStatus(MusicStatus.Stopped(missing))
+                return
+            }
             context.startForegroundService(
                 Intent(context, MusicService::class.java)
                     .setAction(ACTION_START)
                     .putExtra(EXTRA_TARGET, target?.encode()),
             )
         }
+
+        private fun Context.isGranted(permission: String) =
+            checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
 
         fun stop(context: Context) {
             context.startService(Intent(context, MusicService::class.java).setAction(ACTION_STOP))
