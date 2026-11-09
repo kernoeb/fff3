@@ -13,12 +13,16 @@ sealed interface Route {
 
     data object Settings : Route
 
+    /** Phone music mode: the phone listens and drives the strips. */
+    data object Music : Route
+
     /** A stable string form, used to save the back stack and in intents from shortcuts, tile and widget. */
     fun encode(): String = when (this) {
         Home -> "home"
         is Control -> "control/${target.encode()}"
         AddDevice -> "add-device"
         Settings -> "settings"
+        Music -> "music"
     }
 
     companion object {
@@ -27,6 +31,7 @@ sealed interface Route {
             value == "home" -> Home
             value == "add-device" -> AddDevice
             value == "settings" -> Settings
+            value == "music" -> Music
             value.startsWith("control/") -> ControlTarget.decode(value.removePrefix("control/"))?.let(::Control)
             else -> null
         }
