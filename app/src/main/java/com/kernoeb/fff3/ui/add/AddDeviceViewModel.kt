@@ -156,17 +156,20 @@ class AddDeviceViewModel(
     fun identify(address: String) {
         val target = ControlTarget.Device(address)
         viewModelScope.launch {
-            // The first command also waits for the link to open, so the blinks that follow are evenly timed.
-            controller.sendAndAwait(target, listOf(Command.Power(false)), timeoutMillis = IDENTIFY_CONNECT_MS, record = false)
-            repeat(2) {
+            try {
+                // The first command also waits for the link to open, so the blinks that follow are evenly timed.
+                controller.sendAndAwait(target, listOf(Command.Power(false)), timeoutMillis = IDENTIFY_CONNECT_MS, record = false)
+                repeat(2) {
+                    delay(BLINK_MS)
+                    controller.send(target, Command.Power(true), record = false)
+                    delay(BLINK_MS)
+                    controller.send(target, Command.Power(false), record = false)
+                }
                 delay(BLINK_MS)
-                controller.send(target, Command.Power(true), record = false)
-                delay(BLINK_MS)
-                controller.send(target, Command.Power(false), record = false)
+            } finally {
+                // Also runs when the screen closes mid-blink, so the strip never stays off while shown as on.
+                controller.send(target, Command.Power(true))
             }
-            delay(BLINK_MS)
-            // Only the end state is recorded: a blink cut short must not leave "off" saved.
-            controller.send(target, Command.Power(true))
         }
     }
 
