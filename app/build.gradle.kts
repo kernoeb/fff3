@@ -24,6 +24,11 @@ android {
         versionName = "0.1.0"
     }
 
+    // Library strings ship in about 80 languages. The app is in English, and the user reads French.
+    androidResources {
+        localeFilters += listOf("en", "fr")
+    }
+
     buildTypes {
         release {
             optimization {
