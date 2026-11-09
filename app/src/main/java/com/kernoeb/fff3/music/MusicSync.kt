@@ -1,6 +1,7 @@
 package com.kernoeb.fff3.music
 
 import com.kernoeb.fff3.ble.ControlTarget
+import com.kernoeb.fff3.data.MusicSource
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,11 +19,18 @@ data class MusicSettings(
 
 sealed interface MusicStatus {
     data object Idle : MusicStatus
-    data class Running(val target: ControlTarget?) : MusicStatus
+    data class Running(val target: ControlTarget?, val source: MusicSource) : MusicStatus
     data class Stopped(val reason: StopReason) : MusicStatus
 }
 
-enum class StopReason { User, MicUnavailable, MicPermissionMissing, StripsGone, BluetoothOff, BluetoothPermissionMissing }
+enum class StopReason {
+    User, MicUnavailable, MicPermissionMissing, StripsGone, BluetoothOff, BluetoothPermissionMissing,
+    /** The user refused to share phone audio. */
+    CaptureDenied,
+    /** Sharing was stopped from outside the app, for example from the status bar. */
+    CaptureEnded,
+    CaptureUnavailable,
+}
 
 /**
  * Live values the engine writes on the audio thread and the visualiser reads in its draw phase.
@@ -55,6 +63,10 @@ class MusicSync {
     /** Rounded tempo, or 0 while unknown. Changes a few times a minute at most. */
     val bpm: StateFlow<Int> = _bpm.asStateFlow()
 
+    private val _noAudio = MutableStateFlow(false)
+    /** True while phone audio capture has heard only digital silence for a few seconds. */
+    val noAudio: StateFlow<Boolean> = _noAudio.asStateFlow()
+
     val live = LiveMusic(BAND_COUNT)
 
     fun updateSettings(transform: (MusicSettings) -> MusicSettings) = _settings.update(transform)
@@ -63,8 +75,13 @@ class MusicSync {
         _status.value = status
         if (status !is MusicStatus.Running) {
             _bpm.value = 0
+            _noAudio.value = false
             live.clear()
         }
+    }
+
+    internal fun setNoAudio(silent: Boolean) {
+        _noAudio.value = silent
     }
 
     internal fun setBpm(bpm: Int) {

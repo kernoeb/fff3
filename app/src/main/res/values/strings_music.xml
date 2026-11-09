@@ -18,14 +18,26 @@
     <string name="music_style_energy_body">Keeps your strip\'s colour. Brightness follows how loud the music is.</string>
     <string name="music_style_calm_body">A slow colour drift that breathes with the music. Good for background music.</string>
     <string name="music_idle">Play some music near your phone, then start.</string>
+    <string name="music_idle_phone">Play music on your phone, then start.</string>
+    <string name="music_source">Source</string>
+    <string name="music_source_phone">Phone audio</string>
+    <string name="music_source_mic">Microphone</string>
+    <string name="music_source_phone_body">Follows what your phone plays, like Spotify or YouTube. Android asks you to share your screen: only the sound is used.</string>
+    <string name="music_source_mic_body">Listens to the room. Use it for a speaker or another device.</string>
+    <string name="music_no_audio">No audio captured. The playing app may block capture. Try the microphone.</string>
+    <string name="music_use_microphone">Use microphone</string>
+    <string name="music_stopped_capture_denied">Music sync did not start: phone audio sharing was not allowed.</string>
+    <string name="music_stopped_capture_ended">Music sync stopped: phone audio sharing ended.</string>
+    <string name="music_stopped_capture">Music sync stopped: phone audio could not be captured.</string>
     <string name="music_listening">Listening</string>
     <string name="music_listening_bpm">Listening, about %1$d BPM</string>
     <string name="music_privacy">Sound is analysed on your phone. It is never recorded or sent anywhere.</string>
     <string name="music_no_strips">Add a strip first.</string>
     <string name="music_permission_title">Let fff3 hear the music</string>
     <string name="music_permission_body">To make your strips follow the music, fff3 listens to the room through the microphone. Sound is analysed on your phone, never recorded or sent anywhere.\n\nAndroid may also ask to show a notification. It lets you stop music sync without opening the app.</string>
+    <string name="music_permission_body_phone">To capture what your phone plays, Android asks for the audio recording permission. fff3 only uses it to analyse the sound on your phone. It is never recorded or sent anywhere.\n\nAndroid may also ask to show a notification. It lets you stop music sync without opening the app.</string>
     <string name="music_permission_continue">Continue</string>
-    <string name="music_permission_denied">Music sync needs the microphone. You can allow it in the app settings.</string>
+    <string name="music_permission_denied">Music sync needs the audio recording permission, even for phone audio. You can allow it in the app settings.</string>
     <string name="music_permission_settings">Open app settings</string>
     <string name="music_stopped_mic">Music sync stopped: the microphone is not available. Another app may be using it.</string>
     <string name="music_stopped_mic_permission">Music sync stopped: the microphone permission was removed.</string>
@@ -36,4 +48,5 @@
     <string name="music_channel_body">Shown while your strips follow the music.</string>
     <string name="music_notification_title">Music sync is on</string>
     <string name="music_notification_body">Your strips follow the music the phone hears.</string>
+    <string name="music_notification_body_phone">Your strips follow the music your phone plays.</string>
 </resources>

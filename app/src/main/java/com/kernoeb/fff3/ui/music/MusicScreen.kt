@@ -1,6 +1,8 @@
 package com.kernoeb.fff3.ui.music
 
 import android.Manifest
+import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -36,6 +38,7 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -63,6 +66,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kernoeb.fff3.R
 import com.kernoeb.fff3.ble.ControlTarget
+import com.kernoeb.fff3.data.MusicSource
 import com.kernoeb.fff3.music.LiveMusic
 import com.kernoeb.fff3.music.MusicStatus
 import com.kernoeb.fff3.music.MusicStyle
@@ -86,7 +90,31 @@ fun MusicScreen(initialTarget: ControlTarget?, onBack: () -> Unit) {
     var showRationale by rememberSaveable { mutableStateOf(false) }
     var micDenied by rememberSaveable { mutableStateOf(false) }
 
-    fun startMusic() = MusicService.start(context, state.settings.target)
+    val consent = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val data = result.data
+        if (result.resultCode == Activity.RESULT_OK && data != null) {
+            MusicService.start(context, state.settings.target, MusicSource.PhoneAudio, result.resultCode, data)
+        } else {
+            viewModel.onCaptureDenied()
+        }
+    }
+
+    fun startMusic(source: MusicSource = state.source) {
+        if (source == MusicSource.Microphone) {
+            MusicService.start(context, state.settings.target, MusicSource.Microphone)
+            return
+        }
+        try {
+            consent.launch(MusicService.captureConsentIntent(context))
+        } catch (_: ActivityNotFoundException) {
+            viewModel.onCaptureDenied()
+        }
+    }
+
+    fun useMicrophone() {
+        viewModel.selectSource(MusicSource.Microphone)
+        MusicService.start(context, state.settings.target, MusicSource.Microphone)
+    }
 
     val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         // The notification is optional: music sync works without it, only the stop shortcut is hidden.
@@ -113,7 +141,14 @@ fun MusicScreen(initialTarget: ControlTarget?, onBack: () -> Unit) {
             onDismissRequest = { showRationale = false },
             icon = { Icon(painterResource(R.drawable.ic_graphic_eq), contentDescription = null) },
             title = { Text(stringResource(R.string.music_permission_title)) },
-            text = { Text(stringResource(R.string.music_permission_body)) },
+            text = {
+                Text(
+                    stringResource(
+                        if (state.source == MusicSource.PhoneAudio) R.string.music_permission_body_phone
+                        else R.string.music_permission_body,
+                    ),
+                )
+            },
             confirmButton = {
                 TextButton(onClick = {
                     showRationale = false
@@ -163,6 +198,21 @@ fun MusicScreen(initialTarget: ControlTarget?, onBack: () -> Unit) {
                 color = if (state.status.isFailure) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
             )
 
+            if (state.noAudio) {
+                Surface(color = MaterialTheme.colorScheme.errorContainer, shape = RoundedCornerShape(20.dp)) {
+                    Column(Modifier.padding(start = 16.dp, top = 12.dp, end = 8.dp, bottom = 4.dp)) {
+                        Text(
+                            stringResource(R.string.music_no_audio),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                        TextButton(onClick = ::useMicrophone, modifier = Modifier.align(Alignment.End)) {
+                            Text(stringResource(R.string.music_use_microphone))
+                        }
+                    }
+                }
+            }
+
             if (micDenied && activity?.shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO) == false) {
                 Text(stringResource(R.string.music_permission_denied), style = MaterialTheme.typography.bodyMedium)
                 TextButton(onClick = { context.openAppSettings() }) {
@@ -196,6 +246,30 @@ fun MusicScreen(initialTarget: ControlTarget?, onBack: () -> Unit) {
                 )
             }
 
+            SectionTitle(R.string.music_source)
+            val sources = listOf(MusicSource.PhoneAudio, MusicSource.Microphone)
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                sources.forEachIndexed { index, source ->
+                    SegmentedButton(
+                        selected = source == state.source,
+                        onClick = {
+                            if (source == state.source) return@SegmentedButton
+                            viewModel.selectSource(source)
+                            val running = state.status as? MusicStatus.Running
+                            if (running != null && running.source != source) startMusic(source)
+                        },
+                        shape = SegmentedButtonDefaults.itemShape(index, sources.size),
+                        icon = {},
+                        label = { Text(stringResource(source.labelRes()), maxLines = 1) },
+                    )
+                }
+            }
+            Text(
+                stringResource(state.source.bodyRes()),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
             SectionTitle(R.string.music_target)
             if (state.loaded && !state.hasStrips) {
                 Text(stringResource(R.string.music_no_strips), style = MaterialTheme.typography.bodyMedium)
@@ -207,7 +281,8 @@ fun MusicScreen(initialTarget: ControlTarget?, onBack: () -> Unit) {
                         onClick = {
                             if (option.target == state.settings.target) return@FilterChip
                             viewModel.selectTarget(option.target)
-                            if (state.running) MusicService.start(context, option.target)
+                            val running = state.status as? MusicStatus.Running
+                            if (running != null) MusicService.start(context, option.target, running.source)
                         },
                         label = { Text(option.label ?: stringResource(R.string.music_all_strips)) },
                     )
@@ -305,14 +380,31 @@ private fun statusText(state: MusicUiState): String = when (val status = state.s
         if (state.bpm > 0) stringResource(R.string.music_listening_bpm, state.bpm)
         else stringResource(R.string.music_listening)
     is MusicStatus.Stopped -> when (status.reason) {
-        StopReason.User -> stringResource(R.string.music_idle)
+        StopReason.User -> idleText(state.source)
+        StopReason.CaptureDenied -> stringResource(R.string.music_stopped_capture_denied)
+        StopReason.CaptureEnded -> stringResource(R.string.music_stopped_capture_ended)
+        StopReason.CaptureUnavailable -> stringResource(R.string.music_stopped_capture)
         StopReason.MicUnavailable -> stringResource(R.string.music_stopped_mic)
         StopReason.MicPermissionMissing -> stringResource(R.string.music_stopped_mic_permission)
         StopReason.StripsGone -> stringResource(R.string.music_stopped_strips)
         StopReason.BluetoothOff -> stringResource(R.string.music_stopped_bluetooth)
         StopReason.BluetoothPermissionMissing -> stringResource(R.string.music_stopped_bluetooth_permission)
     }
-    MusicStatus.Idle -> stringResource(R.string.music_idle)
+    MusicStatus.Idle -> idleText(state.source)
+}
+
+@Composable
+private fun idleText(source: MusicSource): String =
+    stringResource(if (source == MusicSource.PhoneAudio) R.string.music_idle_phone else R.string.music_idle)
+
+private fun MusicSource.labelRes(): Int = when (this) {
+    MusicSource.PhoneAudio -> R.string.music_source_phone
+    MusicSource.Microphone -> R.string.music_source_mic
+}
+
+private fun MusicSource.bodyRes(): Int = when (this) {
+    MusicSource.PhoneAudio -> R.string.music_source_phone_body
+    MusicSource.Microphone -> R.string.music_source_mic_body
 }
 
 private val MusicStatus.isFailure: Boolean

@@ -21,7 +21,7 @@ import java.time.DayOfWeek
  */
 object AppDataCodec {
 
-    private const val VERSION = 2
+    private const val VERSION = 3
 
     fun write(data: AppData, output: OutputStream) {
         val out = DataOutputStream(output)
@@ -46,6 +46,7 @@ object AppDataCodec {
         }
         out.writeBoolean(data.settings.accentFollowsStrip)
         out.writeBoolean(data.settings.hapticsEnabled)
+        out.writeUTF(data.settings.musicSource.name)
         out.flush()
     }
 
@@ -76,6 +77,7 @@ object AppDataCodec {
         val settings = Settings(
             accentFollowsStrip = inp.readBoolean(),
             hapticsEnabled = if (version >= 2) inp.readBoolean() else true,
+            musicSource = if (version >= 3) MusicSource.valueOf(inp.readUTF()) else MusicSource.PhoneAudio,
         )
         return AppData(devices, groups, favourites, settings)
     }

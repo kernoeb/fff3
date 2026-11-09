@@ -12,11 +12,12 @@
         android:name="android.permission.BLUETOOTH_SCAN"
         android:usesPermissionFlags="neverForLocation" />
 
-    <!-- Phone music mode: listen to the room, and keep driving the strips with the screen off. -->
+    <!-- Phone music mode: listen to the room or capture what the phone plays, and keep driving the strips with the screen off. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
@@ -43,7 +44,7 @@
         <service
             android:name=".system.MusicService"
             android:exported="false"
-            android:foregroundServiceType="microphone|connectedDevice" />
+            android:foregroundServiceType="microphone|connectedDevice|mediaProjection" />
 
         <activity
             android:name=".system.ShortcutActivity"

@@ -46,7 +46,11 @@ data class Favourite(
 data class Settings(
     val accentFollowsStrip: Boolean = true,
     val hapticsEnabled: Boolean = true,
+    val musicSource: MusicSource = MusicSource.PhoneAudio,
 )
+
+/** What music sync listens to: what the phone plays, or the room through the microphone. */
+enum class MusicSource { PhoneAudio, Microphone }
 
 /**
  * What fff3 last sent to a strip. The strips cannot report their state, so this is our best guess.

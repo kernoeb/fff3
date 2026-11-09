@@ -43,7 +43,7 @@ class CodecTest {
                 Favourite("f1", "Everything", everyCommand, family = LedFamily.MELK_SCENE),
                 Favourite("f2", "Warm", listOf(Command.Color(Rgb.fromKelvin(2700)))),
             ),
-            settings = Settings(accentFollowsStrip = false, hapticsEnabled = false),
+            settings = Settings(accentFollowsStrip = false, hapticsEnabled = false, musicSource = MusicSource.Microphone),
         )
         val bytes = ByteArrayOutputStream().also { AppDataCodec.write(data, it) }.toByteArray()
         assertEquals(data, AppDataCodec.read(ByteArrayInputStream(bytes)))
@@ -64,6 +64,20 @@ class CodecTest {
         )
         val bytes = ByteArrayOutputStream().also { DeviceStateCodec.write(states, it) }.toByteArray()
         assertEquals(states, DeviceStateCodec.read(ByteArrayInputStream(bytes)))
+    }
+
+    @Test
+    fun version2FileDefaultsToPhoneAudio() {
+        val bytes = ByteArrayOutputStream().also { output ->
+            java.io.DataOutputStream(output).apply {
+                writeInt(2)
+                repeat(3) { writeInt(0) }
+                writeBoolean(false)
+                writeBoolean(true)
+            }
+        }.toByteArray()
+        val settings = AppDataCodec.read(ByteArrayInputStream(bytes)).settings
+        assertEquals(Settings(accentFollowsStrip = false, musicSource = MusicSource.PhoneAudio), settings)
     }
 
     @Test(expected = IOException::class)
