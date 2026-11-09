@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="calibrate_title">Calibrate light delay</string>
+    <string name="calibrate_body">Point the camera at the strip and keep it inside the box. Tap the image to move the box. A dark room works best. Hold the phone still while the strip flashes red and blue.</string>
+    <string name="calibrate_strip">Strip</string>
+    <string name="calibrate_start">Start</string>
+    <string name="calibrate_retry">Retry</string>
+    <string name="calibrate_saved">Saved</string>
+    <string name="calibrate_preparing">Getting ready…</string>
+    <string name="calibrate_progress">Flash %1$d of %2$d</string>
+    <string name="calibrate_result">Light delay: %1$d ms ± %2$d ms, %3$d flashes</string>
+    <string name="calibrate_rejected">%1$d unclear flashes were left out.</string>
+    <string name="calibrate_saved_value">Saved light delay: %1$d ms</string>
+    <string name="calibrate_not_measured">Not measured yet.</string>
+    <string name="calibrate_music_running">Stop music sync first. It also drives the strips.</string>
+    <string name="calibrate_camera_why">fff3 uses the camera to see when the strip changes colour. Images stay on your phone and are never saved.</string>
+    <string name="calibrate_allow_camera">Allow camera</string>
+    <string name="calibrate_camera_denied">Camera access is off. You can allow it in the app settings.</string>
+    <string name="calibrate_camera_opening">Opening the camera…</string>
+    <string name="calibrate_camera_rate">Camera: %1$d images a second</string>
+    <string name="calibrate_error_no_camera">This phone has no back camera.</string>
+    <string name="calibrate_error_clock">This camera does not tell when each image was taken, so the delay cannot be measured.</string>
+    <string name="calibrate_error_camera">The camera is not available. Another app may be using it.</string>
+    <string name="calibrate_error_not_reached">The strip did not answer. Check that it is on and in range.</string>
+    <string name="calibrate_error_no_change">The camera did not see the strip change colour. Put the strip inside the box and try again.</string>
+    <string name="calibrate_error_too_few">Too few clear flashes. Hold the phone still, make the room darker and try again.</string>
+    <string name="music_light_measure">Measure with camera</string>
+    <string name="music_light_measured">Lights measured with the camera: %1$d ms.</string>
+    <string name="music_light_not_measured">Lights not measured yet.</string>
+    <string name="strip_light_delay_title">Light delay</string>
+    <string name="strip_light_delay_measured">%1$d ms, measured with the camera</string>
+    <string name="strip_light_delay_none">Not measured</string>
+    <string name="strip_light_delay_measure">Measure</string>
+</resources>

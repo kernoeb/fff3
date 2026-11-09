@@ -96,7 +96,7 @@ import kotlin.math.roundToInt
 /** Phone music mode: pick where and how, then start. The lights keep going with the screen off. */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun MusicScreen(initialTarget: ControlTarget?, onBack: () -> Unit) {
+fun MusicScreen(initialTarget: ControlTarget?, onBack: () -> Unit, onCalibrateLight: (address: String?) -> Unit) {
     val viewModel = appViewModel(key = "music") {
         MusicViewModel(initialTarget, it.repository, it.deviceStates, it.music)
     }
@@ -333,6 +333,7 @@ fun MusicScreen(initialTarget: ControlTarget?, onBack: () -> Unit) {
                     onRecalibrate = viewModel::recalibrate,
                     onLightDelay = viewModel::setLightDelay,
                     onLightDelayDone = viewModel::saveLightDelay,
+                    onMeasureLight = { onCalibrateLight(state.calibrateAddress) },
                 )
             }
 
@@ -407,6 +408,7 @@ private fun BeatLockPanel(
     onRecalibrate: () -> Unit,
     onLightDelay: (Int) -> Unit,
     onLightDelayDone: () -> Unit,
+    onMeasureLight: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     Surface(color = colors.surfaceContainer, shape = RoundedCornerShape(24.dp)) {
@@ -452,7 +454,7 @@ private fun BeatLockPanel(
                     }
                 }
             }
-            val delay = state.settings.lightDelayMs
+            val delay = state.lightDelayMs
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(stringResource(R.string.music_light_delay), style = MaterialTheme.typography.titleSmall)
                 Text(
@@ -480,6 +482,18 @@ private fun BeatLockPanel(
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.onSurfaceVariant,
             )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    state.measuredLightMs?.let { stringResource(R.string.music_light_measured, it) }
+                        ?: stringResource(R.string.music_light_not_measured),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = onMeasureLight) {
+                    Text(stringResource(R.string.music_light_measure))
+                }
+            }
         }
     }
 }

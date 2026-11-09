@@ -25,6 +25,7 @@ import com.kernoeb.fff3.ble.ControlTarget
 import com.kernoeb.fff3.ble.LedSession
 import com.kernoeb.fff3.data.LedState
 import com.kernoeb.fff3.data.MusicSource
+import com.kernoeb.fff3.music.LightTiming
 import com.kernoeb.fff3.music.MicSource
 import com.kernoeb.fff3.music.MusicEngine
 import com.kernoeb.fff3.music.PlaybackSource
@@ -206,6 +207,7 @@ class MusicService : Service() {
                 source = audio,
                 baseColor = baseColor,
                 linkLatency = container.linkLatency,
+                measuredLightMs = LightTiming.measuredMs(data.settings.lightDelaysMs, addresses),
                 outputDelaysMs = data.settings.outputDelaysMs,
                 onOutputDelay = { output, millis ->
                     container.appScope.launch {

@@ -10,6 +10,7 @@ import android.bluetooth.BluetoothProfile
 import android.bluetooth.BluetoothStatusCodes
 import android.content.Context
 import android.os.Build
+import android.os.SystemClock
 import android.util.Log
 import com.kernoeb.fff3.protocol.Command
 import com.kernoeb.fff3.protocol.LedFamily
@@ -46,6 +47,7 @@ class LedConnection internal constructor(
     private val environment: BluetoothEnvironment,
     parentScope: CoroutineScope,
     latency: WriteLatency? = null,
+    private val frameWrites: FrameWrites? = null,
 ) {
     private val scope = CoroutineScope(parentScope.coroutineContext + SupervisorJob(parentScope.coroutineContext[Job]))
 
@@ -217,7 +219,9 @@ class LedConnection internal constructor(
                 BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
             }
 
-            link.value = GattLink(gatt, characteristic, writeType, acks, scope)
+            link.value = GattLink(gatt, characteristic, writeType, acks, scope) { frame, at ->
+                frameWrites?.listener?.onWrite(address, frame, at)
+            }
             _state.value = ConnectionState.Connected
             awaitLinkLost(events)
             return true
@@ -303,6 +307,7 @@ private class GattLink(
     private val writeType: Int,
     private val acks: Channel<Int>,
     private val scope: CoroutineScope,
+    private val onWritten: (ByteArray, Long) -> Unit,
 ) {
     @Volatile
     private var lastWrite = TimeSource.Monotonic.markNow()
@@ -312,6 +317,7 @@ private class GattLink(
         raisePriority()
         // Drop late acks from earlier writes.
         while (acks.tryReceive().isSuccess) continue
+        val handedAt = SystemClock.elapsedRealtimeNanos()
         val status = try {
             gatt.writeCharacteristic(characteristic, frame, writeType)
         } catch (e: SecurityException) {
@@ -319,6 +325,7 @@ private class GattLink(
         }
         return when (status) {
             BluetoothStatusCodes.SUCCESS -> {
+                onWritten(frame, handedAt)
                 val ack = withTimeoutOrNull(BleTuning.WRITE_ACK_TIMEOUT_MS) { acks.receive() }
                 if (ack == null || ack == BluetoothGatt.GATT_SUCCESS) WriteOutcome.Sent else WriteOutcome.Failed
             }

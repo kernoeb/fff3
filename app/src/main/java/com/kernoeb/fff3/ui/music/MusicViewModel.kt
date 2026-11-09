@@ -10,6 +10,7 @@ import com.kernoeb.fff3.data.MusicSource
 import com.kernoeb.fff3.music.BeatCommand
 import com.kernoeb.fff3.music.BeatStatus
 import com.kernoeb.fff3.music.LatencyStatus
+import com.kernoeb.fff3.music.LightTiming
 import com.kernoeb.fff3.music.LiveMusic
 import com.kernoeb.fff3.music.MusicSettings
 import com.kernoeb.fff3.music.MusicStatus
@@ -44,9 +45,16 @@ data class MusicUiState(
     val beat: BeatStatus = BeatStatus(),
     /** Null while music is off. */
     val latency: LatencyStatus? = null,
+    /** Camera-measured light delay of the chosen strips, or null if none is measured. */
+    val measuredLightMs: Int? = null,
+    /** The strip the camera calibration should open on. */
+    val calibrateAddress: String? = null,
 ) {
     val running: Boolean get() = status is MusicStatus.Running
     val hasStrips: Boolean get() = options.isNotEmpty()
+
+    /** The fine-tune in use: the saved one, or the default for measured or unmeasured strips. */
+    val lightDelayMs: Int get() = settings.lightDelayMs ?: LightTiming.defaultLightDelayMs(measuredLightMs != null)
 }
 
 class MusicViewModel(
@@ -96,6 +104,8 @@ class MusicViewModel(
             noAudio = noAudio && status is MusicStatus.Running && status.source == MusicSource.PhoneAudio,
             beat = beat,
             latency = latency,
+            measuredLightMs = LightTiming.measuredMs(data.settings.lightDelaysMs, addresses),
+            calibrateAddress = addresses.firstOrNull { it !in data.settings.lightDelaysMs } ?: addresses.firstOrNull(),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MusicUiState())
 
@@ -127,7 +137,7 @@ class MusicViewModel(
     fun setLightDelay(millis: Int) = music.updateSettings { it.copy(lightDelayMs = millis) }
 
     fun saveLightDelay() {
-        val millis = music.settings.value.lightDelayMs
+        val millis = music.settings.value.lightDelayMs ?: return
         viewModelScope.launch { repository.updateSettings { it.copy(musicLightDelayMs = millis) } }
     }
 }

@@ -49,6 +49,7 @@ class CodecTest {
                 musicSource = MusicSource.Microphone,
                 musicLightDelayMs = -45,
                 outputDelaysMs = mapOf(AudioOutput.Bluetooth to 212, AudioOutput.Speaker to 18),
+                lightDelaysMs = mapOf("BE:FF:20:00:00:01" to 42, "BE:FF:20:00:00:02" to 97),
             ),
         )
         val bytes = ByteArrayOutputStream().also { AppDataCodec.write(data, it) }.toByteArray()
@@ -84,6 +85,38 @@ class CodecTest {
         }.toByteArray()
         val settings = AppDataCodec.read(ByteArrayInputStream(bytes)).settings
         assertEquals(Settings(accentFollowsStrip = false, musicSource = MusicSource.PhoneAudio), settings)
+    }
+
+    @Test
+    fun unsetLightDelayRoundTrips() {
+        val data = AppData(settings = Settings(musicLightDelayMs = null, lightDelaysMs = mapOf("A" to 3)))
+        val bytes = ByteArrayOutputStream().also { AppDataCodec.write(data, it) }.toByteArray()
+        assertEquals(data, AppDataCodec.read(ByteArrayInputStream(bytes)))
+    }
+
+    @Test
+    fun version4LightDelayOfFiftyFollowsTheDefault() {
+        assertEquals(null, version4Settings(lightDelayMs = 50).musicLightDelayMs)
+        assertEquals(-45, version4Settings(lightDelayMs = -45).musicLightDelayMs)
+        assertEquals(mapOf(AudioOutput.Wired to 30), version4Settings(lightDelayMs = 0).outputDelaysMs)
+        assertEquals(emptyMap<String, Int>(), version4Settings(lightDelayMs = 0).lightDelaysMs)
+    }
+
+    private fun version4Settings(lightDelayMs: Int): Settings {
+        val bytes = ByteArrayOutputStream().also { output ->
+            java.io.DataOutputStream(output).apply {
+                writeInt(4)
+                repeat(3) { writeInt(0) }
+                writeBoolean(true)
+                writeBoolean(true)
+                writeUTF(MusicSource.Microphone.name)
+                writeInt(lightDelayMs)
+                writeInt(1)
+                writeUTF(AudioOutput.Wired.name)
+                writeInt(30)
+            }
+        }.toByteArray()
+        return AppDataCodec.read(ByteArrayInputStream(bytes)).settings
     }
 
     @Test(expected = IOException::class)

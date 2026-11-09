@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -34,6 +35,8 @@ data class StripSettingsUiState(
     val clockSyncedAt: Long? = null,
     val color: Rgb? = null,
     val testing: Rgb? = null,
+    /** Camera-measured light delay, or null if never measured. */
+    val lightDelayMs: Int? = null,
 )
 
 enum class StripMessage { NotReached }
@@ -57,18 +60,19 @@ class StripSettingsViewModel(
     val messages: SharedFlow<StripMessage> = _messages
 
     val state: StateFlow<StripSettingsUiState> = combine(
-        repository.devices,
+        repository.snapshot.filterNotNull(),
         stripSettings.all,
         clockSync.syncedAt,
         deviceStates.states,
         testing.asStateFlow(),
-    ) { devices, settings, synced, states, test ->
+    ) { data, settings, synced, states, test ->
         StripSettingsUiState(
-            device = devices.firstOrNull { it.address == address },
+            device = data.devices.firstOrNull { it.address == address },
             settings = settings[address] ?: StripSettings(),
             clockSyncedAt = synced[address],
             color = states[address]?.color,
             testing = test,
+            lightDelayMs = data.settings.lightDelaysMs[address],
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StripSettingsUiState())
 

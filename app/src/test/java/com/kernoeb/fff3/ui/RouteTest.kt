@@ -21,6 +21,8 @@ class RouteTest {
             Route.Music(),
             Route.Music(ControlTarget.Device("BE:FF:20:00:00:01")),
             Route.Music(ControlTarget.Group("0d1f6c2e-8a1b-4f6e-9a55-1c2d3e4f5a6b")),
+            Route.CalibrateLight(),
+            Route.CalibrateLight("BE:FF:20:00:00:01"),
         )
         for (route in routes) assertEquals(route, Route.decode(route.encode()))
     }

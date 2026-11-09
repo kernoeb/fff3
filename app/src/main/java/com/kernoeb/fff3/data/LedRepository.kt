@@ -71,6 +71,7 @@ class DataStoreLedRepository(
         data.copy(
             devices = data.devices.filterNot { it.address == address },
             groups = data.groups.map { group -> group.copy(memberAddresses = group.memberAddresses - address) },
+            settings = data.settings.copy(lightDelaysMs = data.settings.lightDelaysMs - address),
         )
     }
 

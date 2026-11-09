@@ -29,7 +29,7 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home
 - Each strip accepts one Bluetooth connection at a time. To test from the Mac, stop the app first: `adb shell am force-stop com.kernoeb.fff3`.
 - The Mac can talk to the strips with Python `bleak` (write to `fff3`, service `fff0`, write without response). The strips advertise as `ELK-BLEDOM ` with a trailing space.
 - Firmware `P10FT-V5.12R2776`. `fff4` sends no notifications, and reading `fff3` returns a stale buffer.
-- Bluetooth write callbacks fire when Android queues the write, not when the strip receives it. The real light delay is not measured yet.
+- Bluetooth write callbacks fire when Android queues the write, not when the strip receives it. The real light delay is measured with the camera: Calibrate light delay, from strip settings or the music screen. Logs: `adb logcat -s fff3-calibrate`.
 
 ## Code rules
 

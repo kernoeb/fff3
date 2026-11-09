@@ -1,5 +1,6 @@
 package com.kernoeb.fff3.music
 
+import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 /** How far ahead the beat clock is read, so a light change shows when its beat is heard. */
@@ -8,10 +9,24 @@ object LightTiming {
     /** Used until the link has measured its own write time. */
     const val DEFAULT_LINK_S = 0.060
 
+    /** The fine-tune the user found by eye, to cover the radio and strip time that nothing measured. */
+    const val UNMEASURED_LIGHT_DELAY_MS = 50
+
+    /** The fine-tune used until the user moves it: none once the camera has measured the strips. */
+    fun defaultLightDelayMs(measured: Boolean): Int = if (measured) 0 else UNMEASURED_LIGHT_DELAY_MS
+
     /**
-     * All values in seconds. [link] is the time from send to a finished write, [capture] how stale
-     * the audio is when analysed, [output] how long the phone takes to play captured sound (lights
-     * must wait for it), and [lightDelay] the user's fine-tune (positive makes the lights later).
+     * The camera-measured light delay of these strips, or null if none is measured. Music sends one
+     * colour stream to all of them, so it can only follow their average.
+     */
+    fun measuredMs(delays: Map<String, Int>, addresses: List<String>): Int? =
+        addresses.mapNotNull { delays[it] }.takeIf { it.isNotEmpty() }?.average()?.roundToInt()
+
+    /**
+     * All values in seconds. [link] is the time from send until the strip shows the colour (measured
+     * with the camera, or else only the write time), [capture] how stale the audio is when analysed,
+     * [output] how long the phone takes to play captured sound (lights must wait for it), and
+     * [lightDelay] the user's fine-tune (positive makes the lights later).
      */
     fun lead(link: Double, capture: Double, output: Double, lightDelay: Double): Double =
         link + capture - output - lightDelay

@@ -47,10 +47,12 @@ data class Settings(
     val accentFollowsStrip: Boolean = true,
     val hapticsEnabled: Boolean = true,
     val musicSource: MusicSource = MusicSource.PhoneAudio,
-    /** Beat lock fine-tune in milliseconds: positive makes the lights later. */
-    val musicLightDelayMs: Int = 50,
+    /** Beat lock fine-tune in milliseconds: positive makes the lights later. Null follows the default. */
+    val musicLightDelayMs: Int? = null,
     /** Measured time from captured phone audio to sound out of each kind of output. */
     val outputDelaysMs: Map<AudioOutput, Int> = emptyMap(),
+    /** Camera-measured time from a colour write to the strip showing it, by strip address. */
+    val lightDelaysMs: Map<String, Int> = emptyMap(),
 )
 
 /** What music sync listens to: what the phone plays, or the room through the microphone. */

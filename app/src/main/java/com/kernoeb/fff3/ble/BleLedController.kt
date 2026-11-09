@@ -30,6 +30,8 @@ class BleLedController(
     private val scope: CoroutineScope,
     /** Write times of every strip, for the music beat clock. */
     val writeLatency: WriteLatency = WriteLatency(),
+    /** Write times on the camera clock, for the light delay calibration. */
+    private val frameWrites: FrameWrites? = null,
 ) : LedController {
 
     private val appContext = context.applicationContext
@@ -132,7 +134,7 @@ class BleLedController(
         val existing = connections[device.address]
         if (existing != null && existing.family == device.family) return existing
         existing?.close()
-        val connection = LedConnection(device.address, device.family, appContext, environment, scope, writeLatency)
+        val connection = LedConnection(device.address, device.family, appContext, environment, scope, writeLatency, frameWrites)
         if (sessions > 0) connection.setPinned(true)
         connections[device.address] = connection
         statesStale = true

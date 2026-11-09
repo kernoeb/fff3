@@ -6,6 +6,7 @@ import com.kernoeb.fff3.ble.BleScanner
 import com.kernoeb.fff3.ble.BluetoothEnvironment
 import com.kernoeb.fff3.ble.ClockSyncer
 import com.kernoeb.fff3.ble.CompanionPairing
+import com.kernoeb.fff3.ble.FrameWrites
 import com.kernoeb.fff3.ble.LedController
 import com.kernoeb.fff3.ble.WriteLatency
 import com.kernoeb.fff3.data.DataStoreLedRepository
@@ -49,11 +50,14 @@ class AppContainer(context: Context) {
     val bluetooth: BluetoothEnvironment by lazy { BluetoothEnvironment(appContext) }
 
     val controller: LedController by lazy {
-        BleLedController(appContext, bluetooth, repository, deviceStates, bleScope, linkLatency).also(clockSync::watch)
+        BleLedController(appContext, bluetooth, repository, deviceStates, bleScope, linkLatency, frameWrites).also(clockSync::watch)
     }
 
     /** How long a colour takes from `controller.send` to the strip, for the music beat clock. */
     val linkLatency: WriteLatency by lazy { WriteLatency() }
+
+    /** When each frame reaches the Bluetooth stack, for the camera light delay calibration. */
+    val frameWrites: FrameWrites by lazy { FrameWrites() }
 
     /** Sends the time to each strip on connect. Started by [controller]. */
     val clockSync: ClockSyncer by lazy { ClockSyncer(appScope) }

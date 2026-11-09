@@ -7,6 +7,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.kernoeb.fff3.ui.add.AddDeviceScreen
+import com.kernoeb.fff3.ui.calibrate.CalibrateLightScreen
 import com.kernoeb.fff3.ui.control.ControlScreen
 import com.kernoeb.fff3.ui.home.HomeScreen
 import com.kernoeb.fff3.ui.music.MusicScreen
@@ -54,10 +55,18 @@ fun AppNavigation(navigator: Navigator, modifier: Modifier = Modifier) {
                     address = route.address,
                     onBack = navigator::back,
                     onForgotten = { navigator.openFromLink(Route.Home) },
+                    onCalibrateLight = { navigator.navigate(Route.CalibrateLight(route.address)) },
                 )
             }
             entry<Route.Music> { route ->
-                MusicScreen(initialTarget = route.target, onBack = navigator::back)
+                MusicScreen(
+                    initialTarget = route.target,
+                    onBack = navigator::back,
+                    onCalibrateLight = { navigator.navigate(Route.CalibrateLight(it)) },
+                )
+            }
+            entry<Route.CalibrateLight> { route ->
+                CalibrateLightScreen(initialAddress = route.address, onBack = navigator::back)
             }
         },
     )

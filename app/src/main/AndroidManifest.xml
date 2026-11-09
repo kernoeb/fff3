@@ -3,6 +3,7 @@
 
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
     <uses-feature android:name="android.software.companion_device_setup" android:required="false" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <!-- Connect and write to the strips. Shown to the user as "Nearby devices". -->
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
@@ -19,6 +20,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Light delay calibration: the camera watches the strip change colour. Asked only on that screen. -->
+    <uses-permission android:name="android.permission.CAMERA" />
 
     <application
         android:name=".Fff3Application"

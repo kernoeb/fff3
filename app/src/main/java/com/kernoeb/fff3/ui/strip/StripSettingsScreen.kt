@@ -73,7 +73,7 @@ import java.util.Locale
 /** Settings stored on one strip: name, clock, schedules, wire order. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StripSettingsScreen(address: String, onBack: () -> Unit, onForgotten: () -> Unit) {
+fun StripSettingsScreen(address: String, onBack: () -> Unit, onForgotten: () -> Unit, onCalibrateLight: () -> Unit) {
     val viewModel = appViewModel(key = "strip-settings/$address") {
         StripSettingsViewModel(address, it.repository, it.controller, it.stripSettings, it.clockSync, it.deviceStates, it.pairing)
     }
@@ -123,6 +123,18 @@ fun StripSettingsScreen(address: String, onBack: () -> Unit, onForgotten: () -> 
                             TextButton(onClick = viewModel::syncClock) { Text(stringResource(R.string.strip_clock_sync_now)) }
                         },
                     ) { Text(stringResource(R.string.strip_clock_title)) }
+                    ListItem(
+                        colors = transparentItem(),
+                        supportingContent = {
+                            Text(
+                                state.lightDelayMs?.let { stringResource(R.string.strip_light_delay_measured, it) }
+                                    ?: stringResource(R.string.strip_light_delay_none),
+                            )
+                        },
+                        trailingContent = {
+                            TextButton(onClick = onCalibrateLight) { Text(stringResource(R.string.strip_light_delay_measure)) }
+                        },
+                    ) { Text(stringResource(R.string.strip_light_delay_title)) }
                 }
 
                 if (device.family.supports(Command.Schedule(ScheduleAction.TurnOn, 0, 0, emptySet()))) {

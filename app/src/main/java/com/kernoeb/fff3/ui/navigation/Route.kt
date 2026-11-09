@@ -18,6 +18,9 @@ sealed interface Route {
     /** Phone music mode. [target] null means every strip. */
     data class Music(val target: ControlTarget? = null) : Route
 
+    /** Measures a strip's light delay with the camera. [address] null lets the user pick. */
+    data class CalibrateLight(val address: String? = null) : Route
+
     /** A stable string form, used to save the back stack and in intents from shortcuts, tile and widget. */
     fun encode(): String = when (this) {
         Home -> "home"
@@ -26,6 +29,7 @@ sealed interface Route {
         Settings -> "settings"
         is StripSettings -> "strip-settings/$address"
         is Music -> target?.let { "music/${it.encode()}" } ?: "music"
+        is CalibrateLight -> address?.let { "calibrate-light/$it" } ?: "calibrate-light"
     }
 
     companion object {
@@ -37,6 +41,9 @@ sealed interface Route {
             value.startsWith("strip-settings/") ->
                 value.removePrefix("strip-settings/").takeIf { it.isNotEmpty() }?.let(::StripSettings)
             value == "music" -> Music()
+            value == "calibrate-light" -> CalibrateLight()
+            value.startsWith("calibrate-light/") ->
+                value.removePrefix("calibrate-light/").takeIf { it.isNotEmpty() }?.let(::CalibrateLight)
             value.startsWith("music/") -> ControlTarget.decode(value.removePrefix("music/"))?.let(::Music)
             value.startsWith("control/") -> ControlTarget.decode(value.removePrefix("control/"))?.let(::Control)
             else -> null

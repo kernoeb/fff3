@@ -23,7 +23,8 @@ import kotlin.math.roundToInt
  * Reads [source] on its own thread, analyses it and calls [onColor] about 30 times a second
  * with the colour to show. [onFailure] runs once, on that thread, if the source stops working.
  *
- * Beat lock reads its clock ahead by the measured delays: [linkLatency] for the strips, and for
+ * Beat lock reads its clock ahead by the measured delays: [measuredLightMs] for the strips (from the
+ * camera calibration, else [linkLatency], which only covers the write), and for
  * phone audio the output delay, from [outputDelaysMs] or measured with the microphone and given
  * back through [onOutputDelay] to be saved.
  */
@@ -33,6 +34,7 @@ class MusicEngine(
     private val source: AudioSource,
     private val baseColor: Rgb?,
     private val linkLatency: WriteLatency,
+    private val measuredLightMs: Int?,
     outputDelaysMs: Map<AudioOutput, Int>,
     private val onOutputDelay: (AudioOutput, Int) -> Unit,
     private val onColor: (Rgb) -> Unit,
@@ -143,7 +145,7 @@ class MusicEngine(
 
                 val lag = (System.nanoTime() - source.lastSampleNanos) / 1e9
                 captureLag = if (captureLag < 0) lag else captureLag + (lag - captureLag) * CAPTURE_SMOOTHING
-                val linkMillis = linkLatency.medianMillis
+                val linkMillis = measuredLightMs ?: linkLatency.medianMillis
                 val link = if (linkMillis >= 0) linkMillis / 1000.0 else LightTiming.DEFAULT_LINK_S
                 var latencyChanged = handleCommands(tracker)
                 if (outputChanged) {
@@ -156,7 +158,8 @@ class MusicEngine(
                 }
                 latencyChanged = calibrate(analyzer.frameRate, tracker, frame.onset, settings.style) || latencyChanged
 
-                val lead = LightTiming.lead(link, captureLag, outputDelay, settings.lightDelayMs / 1000.0)
+                val fineTune = settings.lightDelayMs ?: LightTiming.defaultLightDelayMs(measuredLightMs != null)
+                val lead = LightTiming.lead(link, captureLag, outputDelay, fineTune / 1000.0)
                 val color = renderer.render(frame, settings.style, dt, tracker, lead)
 
                 val live = sync.live

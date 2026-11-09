@@ -21,6 +21,7 @@ All code is in `app/src/main/java/com/kernoeb/fff3/`.
 | `protocol/` | commands, families, byte encoders, effect catalogues | none |
 | `ble/` | links to strips, write queue, controller, pairing, scanner | yes |
 | `data/` | DataStore files, devices, groups, favourites, last state | yes |
+| `calibrate/` | camera light delay calibration: Camera2 and OpenGL reader, and its pure maths (`LightDelayMath`) | yes, except `LightDelayMath` |
 | `ui/` | theme, navigation, screens and their ViewModels | yes |
 | root | `Fff3Application`, `AppContainer`, `MainActivity` | yes |
 
@@ -41,6 +42,7 @@ val appScope: CoroutineScope
 val clockSync: ClockSyncer          // sends ClockSync on each connect; syncedAt by address
 val stripSettings: StripSettingsStore  // wire order and schedules we sent (strips are write-only)
 val linkLatency: WriteLatency          // rolling median of send-to-written time, for the music beat clock
+val frameWrites: FrameWrites          // reports each frame as it reaches the Bluetooth stack, for the camera calibration
 ```
 
 In a composable, create a ViewModel from it with `appViewModel { MyViewModel(it.repository, it.controller) }` (`ui/AppViewModels.kt`). Inside a navigation entry, the ViewModel is scoped to that entry.
@@ -133,7 +135,7 @@ The theme is always dark. Accents come from `seed`; the app root passes the colo
 
 ### Navigation: `ui/navigation/`
 
-`Route` is `Home`, `Control(target)`, `AddDevice`, `Settings`, `StripSettings(address)` (rename, timers, wire order, forget: open it from a strip overflow menu) or `Music` (phone music mode). `AppNavigation.kt` maps routes to screens with Navigation 3. `Navigator.navigate(route)` and `Navigator.back()` change the back stack.
+`Route` is `Home`, `Control(target)`, `AddDevice`, `Settings`, `StripSettings(address)` (rename, timers, wire order, light delay, forget: open it from a strip overflow menu), `Music` (phone music mode) or `CalibrateLight(address)` (camera light delay calibration). `AppNavigation.kt` maps routes to screens with Navigation 3. `Navigator.navigate(route)` and `Navigator.back()` change the back stack.
 
 ## Where new work plugs in
 
@@ -142,8 +144,9 @@ The theme is always dark. Accents come from `seed`; the app root passes the colo
 - **Quick Settings tile:** a `TileService` in a new `system/` package. Use `context.appContainer.controller.sendAndAwait(target, listOf(Command.Power(on)))` and read `deviceStates.states` for the tile state. Declare it in the manifest.
 - **Widget:** an `AppWidgetProvider` with `RemoteViews` in `system/`, same calls as the tile. Store each widget's target as `ControlTarget.encode()`.
 - **App shortcuts:** open a screen with `MainActivity.intentFor(context, route)`, or send directly from a small trampoline activity with `sendAndAwait`.
-- **Phone music mode:** a foreground service (types `microphone|connectedDevice`, plus `mediaProjection` for phone audio) in `system/`. Sources implement `music/AudioSource` (`MicSource`, `PlaybackSource`); `MusicEngine` runs the same analyser on either. The saved choice is `Settings.musicSource`. Hold `controller.openSession()` while running, close it in `onDestroy`, and send `Command.Color` and `Command.Brightness` through `controller.send`. The Beat lock style runs its own beat clock (`BeatTracker`) and reads it ahead by `LightTiming.lead`: link time (`linkLatency`) plus capture lag, minus the phone's output delay (measured with the microphone by `OutputCalibration`, saved per `AudioOutput` in `Settings`), minus the user's light delay. It logs one line a second under the `fff3-beat` tag (`adb logcat -s fff3-beat`): tempo heard, confidence, locked tempo, state and the reason for any re-lock. Add `RECORD_AUDIO`, `FOREGROUND_SERVICE*` and `POST_NOTIFICATIONS` to the manifest then, not before.
+- **Phone music mode:** a foreground service (types `microphone|connectedDevice`, plus `mediaProjection` for phone audio) in `system/`. Sources implement `music/AudioSource` (`MicSource`, `PlaybackSource`); `MusicEngine` runs the same analyser on either. The saved choice is `Settings.musicSource`. Hold `controller.openSession()` while running, close it in `onDestroy`, and send `Command.Color` and `Command.Brightness` through `controller.send`. The Beat lock style runs its own beat clock (`BeatTracker`) and reads it ahead by `LightTiming.lead`: link time (`linkLatency`) plus capture lag, minus the phone's output delay (measured with the microphone by `OutputCalibration`, saved per `AudioOutput` in `Settings`), minus the user's light delay. The link time is the camera-measured light delay of the target strips (`Settings.lightDelaysMs`) when there is one, else `linkLatency`, which only covers the write. The user's light delay (`Settings.musicLightDelayMs`) is null until they move it, and then follows `LightTiming.defaultLightDelayMs`: 0 once measured, +50 ms otherwise. It logs one line a second under the `fff3-beat` tag (`adb logcat -s fff3-beat`): tempo heard, confidence, locked tempo, state and the reason for any re-lock. Add `RECORD_AUDIO`, `FOREGROUND_SERVICE*` and `POST_NOTIFICATIONS` to the manifest then, not before.
 - **Tile, widget and shortcuts (built):** all sends go through `system/SystemActionReceiver` (`goAsync`, so a cold process stays alive until the write ends). Settings can call `QuickSettingsTile.requestAdd(context)` and `QuickSettingsTile.setTarget(context, target)`. `SystemSync` keeps the widget and favourite shortcuts up to date.
+- **Light delay calibration:** `ui/calibrate/` flashes one strip red and blue while `calibrate/LightCamera` watches it. Send times come from `FrameWrites` (`SystemClock.elapsedRealtimeNanos` at the GATT write); frame times are the sensor timestamps, which must be on the same clock (`SENSOR_INFO_TIMESTAMP_SOURCE` REALTIME), corrected to the middle of the exposure and for rolling shutter. The result is saved per strip in `Settings.lightDelaysMs`.
 - **Tuning:** frame interval, retries, timeouts and idle delay are all in `ble/BleTuning.kt`.
 
 ## Rules
