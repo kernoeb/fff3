@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tile_all_strips">All strips</string>
+    <string name="tile_no_strips">No strips yet</string>
+    <string name="widget_label">Strips</string>
+    <string name="widget_description">Turn your strips on and off, and apply favourites.</string>
+    <string name="widget_turn_on">Turn on</string>
+    <string name="widget_turn_off">Turn off</string>
+    <string name="shortcut_all_on">All on</string>
+    <string name="shortcut_all_on_long">Turn all strips on</string>
+    <string name="shortcut_all_off">All off</string>
+    <string name="shortcut_all_off_long">Turn all strips off</string>
+    <string name="shortcut_favourite_gone">This favourite no longer exists</string>
+</resources>

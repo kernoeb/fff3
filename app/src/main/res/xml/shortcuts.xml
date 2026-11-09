@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:icon="@drawable/shortcut_power_on"
+        android:shortcutId="all_on"
+        android:shortcutLongLabel="@string/shortcut_all_on_long"
+        android:shortcutShortLabel="@string/shortcut_all_on">
+        <intent
+            android:action="com.kernoeb.fff3.action.POWER"
+            android:targetClass="com.kernoeb.fff3.system.ShortcutActivity"
+            android:targetPackage="com.kernoeb.fff3">
+            <extra android:name="com.kernoeb.fff3.extra.POWER" android:value="on" />
+            <extra android:name="com.kernoeb.fff3.extra.SHORTCUT_ID" android:value="all_on" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:icon="@drawable/shortcut_power_off"
+        android:shortcutId="all_off"
+        android:shortcutLongLabel="@string/shortcut_all_off_long"
+        android:shortcutShortLabel="@string/shortcut_all_off">
+        <intent
+            android:action="com.kernoeb.fff3.action.POWER"
+            android:targetClass="com.kernoeb.fff3.system.ShortcutActivity"
+            android:targetPackage="com.kernoeb.fff3">
+            <extra android:name="com.kernoeb.fff3.extra.POWER" android:value="off" />
+            <extra android:name="com.kernoeb.fff3.extra.SHORTCUT_ID" android:value="all_off" />
+        </intent>
+    </shortcut>
+</shortcuts>

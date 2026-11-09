@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:clipToOutline="true"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:baselineAligned="false"
+        android:gravity="center"
+        android:orientation="horizontal">
+
+        <FrameLayout
+            android:id="@+id/widget_power"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:background="@drawable/widget_ripple_circle">
+
+            <ImageView
+                android:id="@+id/widget_glow"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:importantForAccessibility="no"
+                android:src="@drawable/widget_glow" />
+
+            <ImageView
+                android:id="@+id/widget_power_fill"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_gravity="center"
+                android:importantForAccessibility="no"
+                android:src="@drawable/widget_circle" />
+
+            <ImageView
+                android:id="@+id/widget_power_icon"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center"
+                android:importantForAccessibility="no"
+                android:src="@drawable/ic_power_settings_new" />
+        </FrameLayout>
+
+        <LinearLayout
+            android:id="@+id/widget_text"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/widget_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif-medium"
+                android:maxLines="1"
+                android:text="@string/tile_all_strips"
+                android:textColor="@color/widget_on_surface"
+                android:textSize="16sp" />
+
+            <TextView
+                android:id="@+id/widget_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:textColor="@color/widget_on_surface_variant"
+                android:textSize="14sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/widget_favourites"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:id="@+id/widget_favourite_0"
+            style="@style/Widget.Fff3.Chip">
+
+            <ImageView
+                android:id="@+id/widget_favourite_dot_0"
+                style="@style/Widget.Fff3.ChipDot" />
+
+            <TextView
+                android:id="@+id/widget_favourite_name_0"
+                style="@style/Widget.Fff3.ChipText" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/widget_favourite_1"
+            style="@style/Widget.Fff3.Chip"
+            android:layout_marginStart="6dp">
+
+            <ImageView
+                android:id="@+id/widget_favourite_dot_1"
+                style="@style/Widget.Fff3.ChipDot" />
+
+            <TextView
+                android:id="@+id/widget_favourite_name_1"
+                style="@style/Widget.Fff3.ChipText" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/widget_favourite_2"
+            style="@style/Widget.Fff3.Chip"
+            android:layout_marginStart="6dp">
+
+            <ImageView
+                android:id="@+id/widget_favourite_dot_2"
+                style="@style/Widget.Fff3.ChipDot" />
+
+            <TextView
+                android:id="@+id/widget_favourite_name_2"
+                style="@style/Widget.Fff3.ChipText" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/widget_favourite_3"
+            style="@style/Widget.Fff3.Chip"
+            android:layout_marginStart="6dp">
+
+            <ImageView
+                android:id="@+id/widget_favourite_dot_3"
+                style="@style/Widget.Fff3.ChipDot" />
+
+            <TextView
+                android:id="@+id/widget_favourite_name_3"
+                style="@style/Widget.Fff3.ChipText" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

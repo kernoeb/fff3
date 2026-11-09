@@ -1,6 +1,7 @@
 package com.kernoeb.fff3
 
 import android.app.Application
+import com.kernoeb.fff3.system.SystemSync
 
 class Fff3Application : Application() {
 
@@ -10,5 +11,6 @@ class Fff3Application : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
+        SystemSync.start(this, container)
     }
 }
