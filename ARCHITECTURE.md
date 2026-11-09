@@ -142,6 +142,7 @@ The theme is always dark. Accents come from `seed`; the app root passes the colo
 - **Widget:** an `AppWidgetProvider` with `RemoteViews` in `system/`, same calls as the tile. Store each widget's target as `ControlTarget.encode()`.
 - **App shortcuts:** open a screen with `MainActivity.intentFor(context, route)`, or send directly from a small trampoline activity with `sendAndAwait`.
 - **Phone music mode:** a foreground service (types `microphone|connectedDevice`) in `system/`. Hold `controller.openSession()` while running, close it in `onDestroy`, and send `Command.Color` and `Command.Brightness` through `controller.send`. Add `RECORD_AUDIO`, `FOREGROUND_SERVICE*` and `POST_NOTIFICATIONS` to the manifest then, not before.
+- **Tile, widget and shortcuts (built):** all sends go through `system/SystemActionReceiver` (`goAsync`, so a cold process stays alive until the write ends). Settings can call `QuickSettingsTile.requestAdd(context)` and `QuickSettingsTile.setTarget(context, target)`. `SystemSync` keeps the widget and favourite shortcuts up to date.
 - **Tuning:** frame interval, retries, timeouts and idle delay are all in `ble/BleTuning.kt`.
 
 ## Rules

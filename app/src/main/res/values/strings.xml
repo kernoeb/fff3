@@ -70,8 +70,6 @@
     <string name="control_favourite_saved">Saved to favourites</string>
     <string name="control_favourite_nothing">Pick a colour or an effect first.</string>
 
-    <string name="music_title">Music</string>
-    <string name="music_placeholder">Phone music mode is not ready yet.</string>
 
     <string name="add_title">Add a strip</string>
     <string name="add_pair_title">Find with Android</string>

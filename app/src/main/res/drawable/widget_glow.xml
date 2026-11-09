@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- White with falling alpha; the widget tints it with the strip colour. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <gradient
+        android:centerColor="#80FFFFFF"
+        android:endColor="#00FFFFFF"
+        android:gradientRadius="50%"
+        android:startColor="#FFFFFFFF"
+        android:type="radial" />
+</shape>
