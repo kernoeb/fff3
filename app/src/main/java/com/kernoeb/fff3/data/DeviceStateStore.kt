@@ -1,7 +1,9 @@
 package com.kernoeb.fff3.data
 
+import android.util.Log
 import androidx.datastore.core.DataStore
 import com.kernoeb.fff3.protocol.Command
+import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -94,7 +96,13 @@ class PersistentDeviceStateStore(
         val current = _states.value
         val last = synchronized(lock) { written } ?: return@withLock
         if (current == last) return@withLock
-        store.updateData { current }
+        try {
+            store.updateData { current }
+        } catch (e: IOException) {
+            // An uncaught error here would crash the app. The next change tries again.
+            Log.e("fff3", "Cannot save the strip states", e)
+            return@withLock
+        }
         synchronized(lock) { written = current }
     }
 

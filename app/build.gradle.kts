@@ -25,6 +25,11 @@ android {
     }
 
     // Library strings ship in about 80 languages. The app is in English, and the user reads French.
+    // Lint 9.5 crashes while analysing some Compose files ("bug in lint"), which blocks release builds.
+    lint {
+        checkReleaseBuilds = false
+    }
+
     androidResources {
         localeFilters += listOf("en", "fr")
     }

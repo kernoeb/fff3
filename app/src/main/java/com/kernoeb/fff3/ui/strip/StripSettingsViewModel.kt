@@ -54,7 +54,6 @@ class StripSettingsViewModel(
     private val target = ControlTarget.Device(address)
     private val testing = MutableStateFlow<Rgb?>(null)
     private var testJob: Job? = null
-    private var restoreColour: Rgb? = null
 
     private val _messages = MutableSharedFlow<StripMessage>(extraBufferCapacity = 1)
     val messages: SharedFlow<StripMessage> = _messages
@@ -120,8 +119,8 @@ class StripSettingsViewModel(
      * The user compares the strip with the colour on screen.
      */
     fun testWireOrder(order: ChannelOrder) {
-        // Keep the colour from before the first of several quick tests.
-        if (testJob?.isActive != true) restoreColour = state.value.color
+        // Test colours are not recorded, so the saved colour is still the user's.
+        val restoreColour = state.value.color
         testJob?.cancel()
         testJob = viewModelScope.launch {
             val self = coroutineContext[Job]

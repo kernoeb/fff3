@@ -258,7 +258,8 @@ class MusicService : Service() {
         engine = null
         val controller = container.controller
         for ((address, state) in previous) {
-            controller.send(ControlTarget.Device(address), musicRestoreCommands(state))
+            val restore = musicRestoreCommands(state)
+            if (restore.isNotEmpty()) controller.send(ControlTarget.Device(address), restore)
         }
         previous = emptyMap()
     }

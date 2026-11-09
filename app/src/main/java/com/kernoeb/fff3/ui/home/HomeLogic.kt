@@ -90,13 +90,9 @@ fun favouriteRecipients(
 }
 
 /** The target to preselect for favourites: the "All" group, else every strip, else the only strip. */
-fun defaultHomeTarget(devices: List<KnownDevice>, groups: List<DeviceGroup>): HomeTarget? = when {
-    devices.isEmpty() -> null
-    devices.size == 1 -> HomeTarget.One(ControlTarget.Device(devices.single().address))
-    else -> findAllStripsGroup(devices.map { it.address }, groups)
-        ?.let { HomeTarget.One(ControlTarget.Group(it.id)) }
-        ?: HomeTarget.AllStrips
-}
+fun defaultHomeTarget(devices: List<KnownDevice>, groups: List<DeviceGroup>): HomeTarget? =
+    if (devices.isEmpty()) null
+    else wholeSetOf(devices.map { it.address }, groups).standIn?.let(HomeTarget::One) ?: HomeTarget.AllStrips
 
 /** Summary of several strips' last known state, for group and "All strips" cards. */
 data class MemberSummary(
