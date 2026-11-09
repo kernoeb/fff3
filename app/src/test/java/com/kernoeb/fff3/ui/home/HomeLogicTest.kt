@@ -82,16 +82,26 @@ class HomeLogicTest {
             listOf(
                 LedState(power = true, color = red, brightness = 50),
                 LedState(power = false, color = blue, brightness = 75),
-                LedState(),
             ),
-            connected = listOf(true, false, true),
+            connected = listOf(true, false),
         )
-        assertEquals(3, summary.count)
+        assertEquals(2, summary.count)
         assertEquals(1, summary.onCount)
-        assertEquals(2, summary.connectedCount)
+        assertEquals(1, summary.connectedCount)
         assertEquals(listOf(red), summary.colours)
         assertEquals(63, summary.brightness)
-        assertFalse(summary.allOn)
+        assertNull(summary.power)
+        assertFalse(summary.unknown)
+    }
+
+    @Test
+    fun oneUnknownMemberMakesTheGroupUnknown() {
+        val red = Rgb(0xFF0000)
+        val summary = summarise(listOf(LedState(power = true, color = red, brightness = 50), LedState()), listOf(true, true))
+        assertTrue(summary.unknown)
+        assertNull(summary.power)
+        assertTrue(summary.colours.isEmpty())
+        assertNull(summary.brightness)
     }
 
     @Test
@@ -99,9 +109,18 @@ class HomeLogicTest {
         val red = Rgb(0xFF0000)
         val summary = summarise(listOf(LedState(power = false, color = red)), listOf(false))
         assertEquals(listOf(red), summary.colours)
+        assertEquals(false, summary.power)
         assertNull(summary.brightness)
-        assertTrue(summarise(listOf(LedState(power = true)), listOf(true)).allOn)
-        assertFalse(summarise(emptyList(), emptyList()).allOn)
+        assertEquals(true, summarise(listOf(LedState(power = true)), listOf(true)).power)
+        assertNull(summarise(emptyList(), emptyList()).power)
+    }
+
+    @Test
+    fun stripWithNoPowerOrLookIsUnknown() {
+        assertTrue(LedState().unknown)
+        assertTrue(LedState(power = true).unknown)
+        assertFalse(LedState(power = false, color = Rgb(1)).unknown)
+        assertFalse(LedState(power = true, effectId = 3).unknown)
     }
 
     @Test

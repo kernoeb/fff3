@@ -46,6 +46,7 @@
     <string name="control_members_connected">%1$d of %2$d connected</string>
     <string name="control_on">On</string>
     <string name="control_off">Off</string>
+    <string name="state_unknown">State unknown</string>
     <string name="control_colour">Colour</string>
     <string name="control_brightness">Brightness</string>
     <string name="control_white">White</string>

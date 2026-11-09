@@ -25,11 +25,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FilledIconToggleButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -59,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import com.kernoeb.fff3.R
 import com.kernoeb.fff3.ble.ConnectionState
 import com.kernoeb.fff3.protocol.Rgb
+import com.kernoeb.fff3.ui.common.PowerChoice
 import com.kernoeb.fff3.ui.common.labelRes
 import com.kernoeb.fff3.ui.theme.toColor
 import kotlin.math.roundToInt
@@ -73,6 +71,7 @@ data class CardAction(val label: String, val onClick: () -> Unit)
 private fun GlowCard(
     colours: List<Color>,
     lit: Boolean,
+    unknown: Boolean,
     onClick: (() -> Unit)?,
     actions: List<CardAction>,
     modifier: Modifier = Modifier,
@@ -81,8 +80,13 @@ private fun GlowCard(
     val haptics = LocalHapticFeedback.current
     var menuOpen by remember { mutableStateOf(false) }
     val base = MaterialTheme.colorScheme.surfaceContainer
-    val first by animateColorAsState(glowOf(colours.getOrNull(0), lit), tween(450), label = "glow")
-    val second by animateColorAsState(glowOf(colours.getOrNull(1) ?: colours.getOrNull(0), lit), tween(450), label = "glow2")
+    val neutral = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.14f)
+    val first by animateColorAsState(
+        if (unknown) neutral else glowOf(colours.getOrNull(0), lit), tween(450), label = "glow",
+    )
+    val second by animateColorAsState(
+        if (unknown) neutral else glowOf(colours.getOrNull(1) ?: colours.getOrNull(0), lit), tween(450), label = "glow2",
+    )
     Box(
         modifier
             .fillMaxWidth()
@@ -154,8 +158,9 @@ fun DeviceCard(
     modifier: Modifier = Modifier,
 ) {
     val on = item.state.power == true
-    val colour = item.state.color?.toColor()
-    GlowCard(listOfNotNull(colour), lit = on, onClick = onOpen, actions = actions, modifier = modifier) { openMenu ->
+    val unknown = item.state.unknown
+    val colour = item.state.color?.takeUnless { unknown }?.toColor()
+    GlowCard(listOfNotNull(colour), lit = on, unknown = unknown, onClick = onOpen, actions = actions, modifier = modifier) { openMenu ->
         Column(Modifier.padding(start = 20.dp, end = 8.dp, top = 16.dp, bottom = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 ColourOrb(colour, on)
@@ -168,11 +173,12 @@ fun DeviceCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                     ConnectionLine(item.connection, stringResource(item.connection.labelRes()))
+                    if (unknown) UnknownHint()
                 }
                 MoreButton(openMenu)
-                PowerButton(on, onPower)
+                PowerChoice(item.state.power, onPower, compact = true)
             }
-            BrightnessRow(item.state.brightness, enabled = on, onBrightness = onBrightness)
+            BrightnessRow(item.state.brightness, enabled = item.state.power != false, onBrightness = onBrightness)
         }
     }
 }
@@ -251,7 +257,8 @@ private fun SummaryCard(
 ) {
     val colours = summary.colours.map(Rgb::toColor)
     val lit = summary.onCount > 0
-    GlowCard(colours, lit = lit, onClick = onOpen, actions = actions, modifier = modifier) { openMenu ->
+    val unknown = summary.count > 0 && (summary.unknown || colours.isEmpty())
+    GlowCard(colours, lit = lit, unknown = unknown, onClick = onOpen, actions = actions, modifier = modifier) { openMenu ->
         Column(Modifier.padding(start = 20.dp, end = 8.dp, top = 16.dp, bottom = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 ColourStack(colours, lit)
@@ -265,7 +272,7 @@ private fun SummaryCard(
                     )
                 }
                 if (actions.isNotEmpty()) MoreButton(openMenu)
-                PowerButton(summary.allOn, onPower)
+                PowerChoice(summary.power, onPower, compact = true)
             }
             BrightnessRow(summary.brightness, enabled = summary.count > 0, onBrightness = onBrightness)
             footer?.invoke()
@@ -276,6 +283,7 @@ private fun SummaryCard(
 @Composable
 private fun groupSubtitle(summary: MemberSummary): String = when {
     summary.count == 0 -> stringResource(R.string.home_group_empty)
+    summary.unknown -> stringResource(R.string.home_group_status_unknown, summary.connectedCount, summary.count)
     else -> stringResource(R.string.home_group_status, summary.onCount, summary.count, summary.connectedCount)
 }
 
@@ -290,25 +298,13 @@ private fun MoreButton(onClick: () -> Unit) {
     }
 }
 
-/** Morphs from round (off) to square (on), the Expressive toggle shape. */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun PowerButton(on: Boolean, onPower: (Boolean) -> Unit) {
-    val haptics = LocalHapticFeedback.current
-    FilledIconToggleButton(
-        checked = on,
-        onCheckedChange = {
-            haptics.performHapticFeedback(if (it) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff)
-            onPower(it)
-        },
-        shapes = IconButtonDefaults.toggleableShapes(),
-        modifier = Modifier.size(56.dp),
-    ) {
-        Icon(
-            painterResource(R.drawable.ic_power_settings_new),
-            stringResource(if (on) R.string.home_turn_off else R.string.home_turn_on),
-        )
-    }
+private fun UnknownHint() {
+    Text(
+        stringResource(R.string.state_unknown),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable
@@ -333,9 +329,17 @@ private fun BrightnessRow(brightness: Int?, enabled: Boolean, onBrightness: (Int
             onValueChangeFinished = { dragging = null },
             valueRange = 1f..100f,
             enabled = enabled,
-            colors = SliderDefaults.colors(
-                inactiveTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.7f),
-            ),
+            colors = if (brightness == null && dragging == null) {
+                SliderDefaults.colors(
+                    thumbColor = MaterialTheme.colorScheme.outline,
+                    activeTrackColor = MaterialTheme.colorScheme.outlineVariant,
+                    inactiveTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.7f),
+                )
+            } else {
+                SliderDefaults.colors(
+                    inactiveTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.7f),
+                )
+            },
             modifier = Modifier
                 .weight(1f)
                 .height(40.dp)

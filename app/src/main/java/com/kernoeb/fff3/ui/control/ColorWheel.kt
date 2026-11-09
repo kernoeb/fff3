@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
@@ -46,6 +47,10 @@ class ColorWheelState(hue: Float = 0f, saturation: Float = 1f) {
     var saturation by mutableFloatStateOf(saturation)
         private set
 
+    /** False until the thumb is placed: the strips cannot report their colour, so we show none. */
+    var known by mutableStateOf(false)
+        private set
+
     /** 0 at rest, 1 while the finger holds the thumb. Grows the thumb. */
     internal val grab = Animatable(0f)
     private val mutex = MutatorMutex()
@@ -58,6 +63,7 @@ class ColorWheelState(hue: Float = 0f, saturation: Float = 1f) {
     }
 
     internal fun set(hue: Float, saturation: Float) {
+        known = true
         this.hue = hue
         this.saturation = saturation.coerceIn(0f, 1f)
     }
@@ -66,6 +72,8 @@ class ColorWheelState(hue: Float = 0f, saturation: Float = 1f) {
     suspend fun animateTo(rgb: Rgb, spec: AnimationSpec<Float> = spring(Spring.DampingRatioLowBouncy, 380f)) =
         mutex.mutate {
             val target = rgb.toHsv()
+            // With no thumb shown yet, appear at the target instead of gliding from a made-up spot.
+            if (!known) set(target.hue, target.saturation)
             val startHue = hue
             val startSaturation = saturation
             // A grey colour has no hue: keep the current one so the thumb moves straight in.
@@ -154,6 +162,7 @@ fun ColorWheel(
                 onDrawBehind {
                     drawCircle(hues, radius, center)
                     drawCircle(whiteCore, radius, center)
+                    if (!state.known) return@onDrawBehind
                     val (dx, dy) = WheelGeometry.offsetOf(state.hue, state.saturation, radius)
                     val at = Offset(center.x + dx, center.y + dy)
                     val r = thumb * (1f + 0.35f * state.grab.value)

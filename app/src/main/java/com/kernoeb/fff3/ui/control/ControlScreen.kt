@@ -9,7 +9,6 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -57,6 +56,7 @@ import com.kernoeb.fff3.data.Favourite
 import com.kernoeb.fff3.protocol.Command
 import com.kernoeb.fff3.protocol.Rgb
 import com.kernoeb.fff3.ui.appViewModel
+import com.kernoeb.fff3.ui.common.PowerChoice
 import com.kernoeb.fff3.ui.theme.toColor
 import kotlinx.coroutines.launch
 
@@ -81,6 +81,7 @@ fun ControlScreen(target: ControlTarget, onBack: () -> Unit, onOpenMusic: (() ->
     var savedMode by rememberSaveable { mutableStateOf<ControlMode?>(null) }
     var micMode by rememberSaveable { mutableIntStateOf(0) }
     var favouriteDraft by remember { mutableStateOf<Favourite?>(null) }
+    var brightnessKnown by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -88,7 +89,10 @@ fun ControlScreen(target: ControlTarget, onBack: () -> Unit, onOpenMusic: (() ->
     LaunchedEffect(viewModel) {
         val inputs = viewModel.currentInputs()
         inputs.color?.toHsv()?.let { wheel.snapTo(it.hue, it.saturation) }
-        brightness.value = inputs.brightness
+        inputs.brightness?.let {
+            brightness.value = it
+            brightnessKnown = true
+        }
         speed.value = inputs.speed
         if (savedMode == null) savedMode = if (viewModel.state.value.effectId != null) ControlMode.Effects else ControlMode.Colour
     }
@@ -101,9 +105,14 @@ fun ControlScreen(target: ControlTarget, onBack: () -> Unit, onOpenMusic: (() ->
     }
     val mode = savedMode?.takeIf { it in modes } ?: modes.firstOrNull() ?: ControlMode.Colour
     val accent = MaterialTheme.colorScheme.primary
+    val neutral = MaterialTheme.colorScheme.outline
     // The brightness track shows the live wheel colour, or the accent while an effect runs.
     val showsWheelColour = state.effectId == null && state.micEnabled != true
-    val liveFill: () -> Color = if (showsWheelColour) ({ wheel.color.toColor() }) else ({ accent })
+    val liveFill: () -> Color = when {
+        !brightnessKnown -> ({ neutral })
+        showsWheelColour -> ({ if (wheel.known) wheel.color.toColor() else neutral })
+        else -> ({ accent })
+    }
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
     Scaffold(
@@ -161,19 +170,20 @@ fun ControlScreen(target: ControlTarget, onBack: () -> Unit, onOpenMusic: (() ->
                 ConnectionChips(state.members, showNames = state.isGroup, modifier = sidePadding)
             }
 
-            Row(sidePadding, verticalAlignment = Alignment.CenterVertically) {
-                if (features.power) {
-                    PowerButton(on = state.power != false, onToggle = viewModel::setPower)
-                }
-                if (features.brightness) {
-                    BigSlider(
-                        brightness,
-                        viewModel::setBrightness,
-                        stringResource(R.string.control_brightness),
-                        modifier = Modifier.weight(1f).padding(start = 16.dp),
-                        fill = liveFill,
-                    )
-                }
+            if (features.power) {
+                PowerChoice(state.power, viewModel::setPower, sidePadding.fillMaxWidth())
+            }
+            if (features.brightness) {
+                BigSlider(
+                    brightness,
+                    {
+                        brightnessKnown = true
+                        viewModel.setBrightness(it)
+                    },
+                    stringResource(R.string.control_brightness),
+                    modifier = sidePadding,
+                    fill = liveFill,
+                )
             }
 
             if (modes.size > 1) {

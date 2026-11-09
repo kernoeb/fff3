@@ -20,10 +20,9 @@
     <string name="home_all_group_hint">Make a group to use colours and effects on every strip.</string>
     <string name="home_all_group_make">Make group</string>
     <string name="home_group_status">%1$d of %2$d on, %3$d connected</string>
+    <string name="home_group_status_unknown">State unknown, %1$d of %2$d connected</string>
     <string name="home_group_empty">No strips in this group</string>
     <string name="home_groups_empty">Groups control several strips at once.</string>
-    <string name="home_turn_on">Turn on</string>
-    <string name="home_turn_off">Turn off</string>
     <string name="home_forget">Forget</string>
     <string name="home_forgotten">%1$s forgotten</string>
     <string name="home_group_edit_members">Edit strips</string>

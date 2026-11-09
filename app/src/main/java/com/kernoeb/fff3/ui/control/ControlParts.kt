@@ -32,7 +32,6 @@ import androidx.compose.material3.SliderState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleButton
-import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -134,25 +133,6 @@ private fun ControlMode.labelRes(): Int = when (this) {
     ControlMode.Colour -> R.string.control_mode_colour
     ControlMode.Effects -> R.string.control_mode_effects
     ControlMode.Mic -> R.string.control_mode_mic
-}
-
-/** A large power button that morphs its shape when on. */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-fun PowerButton(on: Boolean, onToggle: (Boolean) -> Unit, modifier: Modifier = Modifier) {
-    val haptics = LocalHapticFeedback.current
-    ToggleButton(
-        checked = on,
-        onCheckedChange = {
-            haptics.performHapticFeedback(if (it) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff)
-            onToggle(it)
-        },
-        modifier = modifier.size(width = 72.dp, height = 56.dp),
-        shapes = ToggleButtonDefaults.shapesFor(56.dp),
-        contentPadding = ToggleButtonDefaults.contentPaddingFor(56.dp),
-    ) {
-        Icon(painterResource(R.drawable.ic_power_settings_new), stringResource(R.string.control_power))
-    }
 }
 
 /** Cool white and warm white first, then saturated colours. */

@@ -40,7 +40,7 @@ class PowerTileService : TileService() {
                 container.bluetooth.status,
             ) { data, states, bluetooth ->
                 val target = SystemTarget.resolve(data, chosen)
-                TileModel(target, target.isOn(states), bluetooth)
+                TileModel(target, target.isOn(states), target.powerKnown(states), bluetooth)
             }.distinctUntilChanged().collect(::render)
         }
     }
@@ -58,7 +58,7 @@ class PowerTileService : TileService() {
         }
         val on = !model.on
         // Show the new state at once; the recorded state confirms it a moment later.
-        render(model.copy(on = on))
+        render(model.copy(on = on, known = true))
         val power = if (on) SystemActionReceiver.POWER_ON else SystemActionReceiver.POWER_OFF
         SystemActionReceiver.sendNow(this, SystemActionReceiver.powerIntent(this, power, QuickSettingsTile.target(this)))
     }
@@ -78,6 +78,7 @@ class PowerTileService : TileService() {
             model.bluetooth == BluetoothStatus.PermissionMissing -> getString(R.string.connection_permission)
             model.bluetooth == BluetoothStatus.Unsupported -> getString(R.string.connection_unsupported)
             model.on -> getString(R.string.control_on)
+            !model.known -> getString(R.string.state_unknown)
             else -> getString(R.string.control_off)
         }
         tile.icon = Icon.createWithResource(this, R.drawable.ic_lightbulb)
@@ -98,7 +99,12 @@ class PowerTileService : TileService() {
         }
     }
 
-    private data class TileModel(val target: SystemTarget, val on: Boolean, val bluetooth: BluetoothStatus)
+    private data class TileModel(
+        val target: SystemTarget,
+        val on: Boolean,
+        val known: Boolean,
+        val bluetooth: BluetoothStatus,
+    )
 }
 
 /** Hooks for the Settings screen: choose what the tile controls, and ask to add it. */

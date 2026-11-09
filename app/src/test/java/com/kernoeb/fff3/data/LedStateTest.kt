@@ -35,4 +35,15 @@ class LedStateTest {
         val state = LedState(power = true, brightness = 10)
         assertEquals(state, state.after(Command.WireOrder(ChannelOrder.BGR)).after(Command.PixelCount(50)))
     }
+
+    @Test
+    fun sharedKeepsOnlyWhatEveryStripAgreesOn() {
+        val red = Rgb(0xFF0000)
+        val shared = listOf(LedState(power = true, color = red, brightness = 40), LedState(power = true, color = red)).shared()
+        assertEquals(true, shared.power)
+        assertEquals(red, shared.color)
+        assertNull(shared.brightness)
+        assertNull(listOf(LedState(power = true), LedState(power = false)).shared().power)
+        assertNull(emptyList<LedState>().shared().power)
+    }
 }

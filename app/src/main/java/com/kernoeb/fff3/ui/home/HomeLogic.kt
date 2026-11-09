@@ -5,6 +5,7 @@ import com.kernoeb.fff3.data.DeviceGroup
 import com.kernoeb.fff3.data.Favourite
 import com.kernoeb.fff3.data.KnownDevice
 import com.kernoeb.fff3.data.LedState
+import com.kernoeb.fff3.data.shared
 import com.kernoeb.fff3.protocol.Command
 import com.kernoeb.fff3.protocol.Rgb
 
@@ -82,27 +83,36 @@ data class MemberSummary(
     val count: Int,
     val onCount: Int,
     val connectedCount: Int,
-    /** Known colours of the members that are on, or of all members when none is on. */
+    /** Colours of the members that are on, or of all members when none is on. Empty when one is unknown. */
     val colours: List<Rgb>,
-    /** Rounded mean of the known brightness values, or null if none is known. */
+    /** Rounded mean brightness, or null if any member's brightness is unknown. */
     val brightness: Int?,
-) {
-    /** True only when every member is known to be on. */
-    val allOn: Boolean get() = count > 0 && onCount == count
-}
+    /** True or false only when every member is known to be in that state. */
+    val power: Boolean?,
+    /** True when fff3 never sent power to at least one member. */
+    val unknown: Boolean,
+)
 
 fun summarise(states: List<LedState>, connected: List<Boolean>): MemberSummary {
     val lit = states.filter { it.power == true }
     val colourSource = lit.ifEmpty { states }
-    val brightness = states.mapNotNull { it.brightness }
+    val unknown = states.any { it.power == null }
+    val brightness = states.map { it.brightness }
     return MemberSummary(
         count = states.size,
         onCount = lit.size,
         connectedCount = connected.count { it },
-        colours = colourSource.mapNotNull { it.color }.distinct(),
-        brightness = if (brightness.isEmpty()) null else (brightness.sum() + brightness.size / 2) / brightness.size,
+        colours = if (unknown || colourSource.any { it.color == null }) emptyList()
+        else colourSource.mapNotNull { it.color }.distinct(),
+        brightness = if (brightness.isEmpty() || null in brightness) null
+        else brightness.filterNotNull().let { (it.sum() + it.size / 2) / it.size },
+        power = states.shared().power,
+        unknown = unknown,
     )
 }
+
+/** True when fff3 never sent the power or the look (colour, effect or scene) of this strip. */
+val LedState.unknown: Boolean get() = power == null || (color == null && effectId == null && sceneId == null)
 
 /** The colour that best represents a favourite: its last plain colour, or null for effects and scenes. */
 fun Favourite.previewColour(): Rgb? = commands.filterIsInstance<Command.Color>().lastOrNull()?.rgb

@@ -78,3 +78,21 @@ data class LedState(
         is Command.ClockSync, is Command.Schedule -> this
     }
 }
+
+/**
+ * What all these strips agree on. A field is null when any strip does not know it or two strips differ,
+ * so a group with one unknown member shows as unknown.
+ */
+fun List<LedState>.shared(): LedState {
+    fun <T> agreed(field: (LedState) -> T?): T? =
+        map(field).distinct().singleOrNull()
+    return LedState(
+        power = agreed { it.power },
+        color = agreed { it.color },
+        brightness = agreed { it.brightness },
+        effectId = agreed { it.effectId },
+        sceneId = agreed { it.sceneId },
+        speed = agreed { it.speed },
+        micEnabled = agreed { it.micEnabled },
+    )
+}

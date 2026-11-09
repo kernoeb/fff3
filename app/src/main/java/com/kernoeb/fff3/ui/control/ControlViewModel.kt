@@ -13,6 +13,7 @@ import com.kernoeb.fff3.data.DeviceStateStore
 import com.kernoeb.fff3.data.Favourite
 import com.kernoeb.fff3.data.LedRepository
 import com.kernoeb.fff3.data.LedState
+import com.kernoeb.fff3.data.shared
 import com.kernoeb.fff3.protocol.Command
 import com.kernoeb.fff3.protocol.EffectInfo
 import com.kernoeb.fff3.protocol.LedFamily
@@ -76,7 +77,7 @@ data class ControlUiState(
     val isGroup: Boolean = false,
     val members: List<ControlMember> = emptyList(),
     val features: ControlFeatures = ControlFeatures(),
-    /** From the first member, as the strips cannot report their state. Null is unknown. */
+    /** What fff3 last sent, shared by every member. Null is unknown, or members differ. */
     val power: Boolean? = null,
     val effectId: Int? = null,
     val micEnabled: Boolean? = null,
@@ -88,7 +89,7 @@ data class ControlUiState(
 @Immutable
 data class ControlInputs(
     val color: Rgb?,
-    val brightness: Float,
+    val brightness: Float?,
     val speed: Float,
 )
 
@@ -107,7 +108,7 @@ class ControlViewModel(
         if (data == null) return@combine ControlUiState()
         val (title, addresses) = resolve(data) ?: return@combine ControlUiState(loaded = true, exists = false)
         val devices = addresses.mapNotNull { address -> data.devices.firstOrNull { it.address == address } }
-        val last = devices.firstOrNull()?.let { states[it.address] } ?: LedState()
+        val last = devices.map { states[it.address] ?: LedState() }.shared()
         ControlUiState(
             loaded = true,
             title = title,
@@ -129,11 +130,11 @@ class ControlViewModel(
 
     /** Control positions from the latest state we sent. Waits until the saved state is read. */
     suspend fun currentInputs(): ControlInputs {
-        val first = state.first { it.loaded }.members.firstOrNull()
-        val last = first?.let { deviceStates.states.value[it.address] } ?: LedState()
+        val members = state.first { it.loaded }.members
+        val last = members.map { deviceStates.states.value[it.address] ?: LedState() }.shared()
         return ControlInputs(
             color = last.color,
-            brightness = (last.brightness ?: 100).toFloat(),
+            brightness = last.brightness?.toFloat(),
             speed = (last.speed ?: 50).toFloat(),
         )
     }

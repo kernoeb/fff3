@@ -26,6 +26,9 @@ data class SystemTarget(
 
     fun isOn(states: Map<String, LedState>): Boolean = addresses.any { states[it]?.power == true }
 
+    /** False when fff3 never sent power to one of these strips. A tap then sends On, as [isOn] is false. */
+    fun powerKnown(states: Map<String, LedState>): Boolean = addresses.all { states[it]?.power != null }
+
     fun color(states: Map<String, LedState>): Rgb? = addresses.firstNotNullOfOrNull { states[it]?.color }
 
     companion object {

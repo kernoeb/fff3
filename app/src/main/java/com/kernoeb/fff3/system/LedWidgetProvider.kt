@@ -50,13 +50,20 @@ internal object LedWidgets {
 
     data class FavouriteModel(val id: String, val name: String, val color: Int?)
 
-    data class Model(val target: SystemTarget, val on: Boolean, val color: Int?, val favourites: List<FavouriteModel>)
+    data class Model(
+        val target: SystemTarget,
+        val on: Boolean,
+        val known: Boolean,
+        val color: Int?,
+        val favourites: List<FavouriteModel>,
+    )
 
     fun model(data: AppData, states: Map<String, LedState>): Model {
         val target = SystemTarget.resolve(data, chosen = null)
         return Model(
             target = target,
             on = target.isOn(states),
+            known = target.powerKnown(states),
             color = target.color(states)?.packed,
             favourites = data.favourites.take(MAX_FAVOURITES).map { FavouriteModel(it.id, it.name, it.color?.packed) },
         )
@@ -116,6 +123,7 @@ internal object LedWidgets {
                 when {
                     !ready -> R.string.tile_no_strips
                     model.on -> R.string.control_on
+                    !model.known -> R.string.state_unknown
                     else -> R.string.control_off
                 },
             ),
