@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home, groups, favourites and Add device. Kept apart from strings.xml so parallel work merges cleanly. -->
+<resources>
+    <string name="action_undo">Undo</string>
+    <string name="action_ok">OK</string>
+
+    <string name="status_permission_title">Allow Nearby devices</string>
+    <string name="status_bluetooth_off_title">Bluetooth is off</string>
+    <string name="status_unsupported_title">Bluetooth LE missing</string>
+    <string name="status_permission_blocked_body">Android no longer asks for this permission. Open the app settings, then Permissions, and allow Nearby devices.</string>
+    <string name="status_try_again">Try again</string>
+
+    <string name="home_title">Lights</string>
+    <plurals name="home_subtitle">
+        <item quantity="one">%1$d strip, %2$d on</item>
+        <item quantity="other">%1$d strips, %2$d on</item>
+    </plurals>
+    <string name="home_add_first">Add your first strip</string>
+    <string name="home_all_strips">All strips</string>
+    <string name="home_all_group_hint">Make a group to use colours and effects on every strip.</string>
+    <string name="home_all_group_make">Make group</string>
+    <string name="home_group_status">%1$d of %2$d on, %3$d connected</string>
+    <string name="home_group_empty">No strips in this group</string>
+    <string name="home_groups_empty">Groups control several strips at once.</string>
+    <string name="home_turn_on">Turn on</string>
+    <string name="home_turn_off">Turn off</string>
+    <string name="home_forget">Forget</string>
+    <string name="home_forgotten">%1$s forgotten</string>
+    <string name="home_group_edit_members">Edit strips</string>
+    <string name="home_group_edit_title">Edit group</string>
+    <string name="home_group_rename_title">Rename group</string>
+    <string name="home_group_members">Strips</string>
+    <string name="home_group_delete_title">Delete %1$s?</string>
+    <string name="home_group_delete_body">The strips stay. Only the group goes.</string>
+
+    <string name="home_favourites">Favourites</string>
+    <string name="home_favourites_edit">Edit</string>
+    <string name="home_favourites_manage">Favourites</string>
+    <string name="home_favourites_move">Move</string>
+    <string name="home_favourites_empty">No favourites yet.</string>
+    <string name="home_favourites_hint">Save a colour as a favourite from a strip\'s screen to apply it here in one tap.</string>
+    <string name="home_apply_to">On: %1$s</string>
+    <plurals name="home_applied">
+        <item quantity="one">%1$s on %2$d strip</item>
+        <item quantity="other">%1$s on %2$d strips</item>
+    </plurals>
+    <string name="home_apply_nothing">No strip here can play %1$s</string>
+    <string name="home_favourite_rename_title">Rename favourite</string>
+    <string name="home_favourite_delete_title">Delete %1$s?</string>
+    <string name="home_favourite_delete_body">You can save it again from a strip\'s screen.</string>
+
+    <string name="add_another">Add another</string>
+    <string name="add_done">Done</string>
+    <string name="add_added_title">Added</string>
+    <string name="add_name_title">Name this strip</string>
+    <string name="add_name_body">Pick a name you will recognise, such as the room it is in.</string>
+    <string name="add_name_skip">Skip</string>
+    <string name="add_identify">Flash it</string>
+    <string name="add_message_already">This strip is already added as %1$s.</string>
+    <string name="add_message_scan_failed">The scan did not start. Turn Bluetooth off and on, then try again.</string>
+    <string name="add_message_pairing_failed">Android could not search: %1$s Check that Location is on.</string>
+    <string name="add_scan_summary">%1$s, %2$s, %3$s</string>
+    <string name="add_signal_strong">strong signal</string>
+    <string name="add_signal_medium">medium signal</string>
+    <string name="add_signal_weak">weak signal</string>
+</resources>
