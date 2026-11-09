@@ -5,10 +5,16 @@ import kotlin.reflect.KClass
 import kotlin.time.ComparableTimeMark
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeSource
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -45,6 +51,7 @@ internal class WriteQueue(
     private val wakeUp = Channel<Unit>(Channel.CONFLATED)
     private val _idle = MutableStateFlow(true)
     private var lastWriteStart: ComparableTimeMark? = null
+    private var inFlight: Deferred<Boolean>? = null
 
     /** True when nothing is pending or being written. */
     val idle: StateFlow<Boolean> = _idle.asStateFlow()
@@ -79,9 +86,10 @@ internal class WriteQueue(
         wakeUp.trySend(Unit)
     }
 
-    /** Drops everything pending. Waiters get false. */
+    /** Drops everything pending, and aborts the command being written. Waiters get false. */
     fun clear() {
         val dropped = synchronized(lock) {
+            inFlight?.cancel()
             val waiters = pending.flatMap { it.waiters }
             pending.clear()
             waiters
@@ -89,16 +97,25 @@ internal class WriteQueue(
         dropped.forEach { it.complete(false) }
     }
 
-    private suspend fun drain() {
+    private suspend fun drain() = coroutineScope {
         while (true) {
-            val item = synchronized(lock) {
-                pending.removeFirstOrNull().also { if (it == null) _idle.value = true }
+            val (item, attempt) = synchronized(lock) {
+                val next = pending.removeFirstOrNull()
+                if (next == null) _idle.value = true
+                next to next?.let { async(start = CoroutineStart.LAZY) { send(it) }.also { inFlight = it } }
             }
-            if (item == null) {
+            if (item == null || attempt == null) {
                 wakeUp.receive()
                 continue
             }
-            val sent = send(item)
+            // clear() cancels the attempt, for example while it waits for a link that will not come.
+            val sent = try {
+                attempt.await()
+            } catch (e: CancellationException) {
+                ensureActive()
+                false
+            }
+            synchronized(lock) { inFlight = null }
             item.waiters.forEach { it.complete(sent) }
         }
     }

@@ -41,7 +41,8 @@ object Stores {
             read(input)
         } catch (e: IOException) {
             throw CorruptionException("Cannot read store", e)
-        } catch (e: IllegalArgumentException) {
+        } catch (e: RuntimeException) {
+            // Bad enum names, colours or weekdays (DateTimeException) mean a damaged file too.
             throw CorruptionException("Cannot read store", e)
         }
 

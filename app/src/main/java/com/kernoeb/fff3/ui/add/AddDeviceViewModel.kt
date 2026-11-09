@@ -60,6 +60,9 @@ class AddDeviceViewModel(
         return true
     }
 
+    /** The scan request also asks for the connect permission, which the links wait for. */
+    fun onPermissionsChanged() = controller.retryNow()
+
     fun startScan() {
         if (scanJob?.isActive == true) return
         scan.update { it.copy(scanning = true, error = null) }

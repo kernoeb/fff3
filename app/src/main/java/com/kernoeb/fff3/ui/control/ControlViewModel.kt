@@ -14,14 +14,11 @@ import com.kernoeb.fff3.data.LedRepository
 import com.kernoeb.fff3.data.LedState
 import com.kernoeb.fff3.protocol.Command
 import com.kernoeb.fff3.protocol.Rgb
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 
 @Immutable
 data class ControlMember(val address: String, val name: String, val connection: ConnectionState)
@@ -72,18 +69,12 @@ class ControlViewModel(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ControlUiState())
 
-    private val _initialInputs = MutableStateFlow<ControlInputs?>(null)
-
-    /** Null until the saved state is read. Emits once. */
-    val initialInputs: StateFlow<ControlInputs?> = _initialInputs.asStateFlow()
-
-    init {
-        viewModelScope.launch {
-            val last = state.first { it.loaded }.last
-            val hsv = FloatArray(3)
-            last.color?.let { android.graphics.Color.RGBToHSV(it.red, it.green, it.blue, hsv) }
-            _initialInputs.value = ControlInputs(hue = hsv[0], brightness = (last.brightness ?: 100).toFloat())
-        }
+    /** Slider positions from the latest state we sent. Waits until the saved state is read. */
+    suspend fun currentInputs(): ControlInputs {
+        val last = state.first { it.loaded }.last
+        val hsv = FloatArray(3)
+        last.color?.let { android.graphics.Color.RGBToHSV(it.red, it.green, it.blue, hsv) }
+        return ControlInputs(hue = hsv[0], brightness = (last.brightness ?: 100).toFloat())
     }
 
     fun setPower(on: Boolean) = controller.send(target, Command.Power(on))

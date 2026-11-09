@@ -51,6 +51,7 @@ fun AddDeviceScreen(onDone: () -> Unit, onBack: () -> Unit) {
     }
     val scanPermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
         scanPermissionDenied = grants.values.any { !it }
+        viewModel.onPermissionsChanged()
         if (!scanPermissionDenied) viewModel.startScan()
     }
 

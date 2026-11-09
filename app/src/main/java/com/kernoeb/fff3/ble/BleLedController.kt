@@ -37,6 +37,7 @@ class BleLedController(
     private var loaded = false
     private val sentBeforeLoad = mutableListOf<Pair<ControlTarget, List<Command>>>()
     private var statesJob: Job? = null
+    private var statesStale = false
 
     private val _connectionStates = MutableStateFlow<Map<String, ConnectionState>>(emptyMap())
     override val connectionStates: StateFlow<Map<String, ConnectionState>> = _connectionStates.asStateFlow()
@@ -63,7 +64,11 @@ class BleLedController(
     override suspend fun sendAndAwait(target: ControlTarget, commands: List<Command>, timeoutMillis: Long): Boolean {
         val data = repository.snapshot.filterNotNull().first()
         val waiters = mutableListOf<CompletableDeferred<Boolean>>()
-        synchronized(lock) { dispatch(data, target, commands, waiters) }
+        synchronized(lock) {
+            // Send earlier buffered commands first, so they cannot overtake these ones.
+            if (!loaded) onData(data)
+            dispatch(data, target, commands, waiters)
+        }
         if (waiters.isEmpty()) return false
         return withTimeoutOrNull(timeoutMillis) { waiters.awaitAll().all { it } } ?: false
     }
@@ -117,9 +122,10 @@ class BleLedController(
                 if (connection.send(command, done)) deviceStates.record(device.address, command)
             }
         }
+        if (statesStale) watchStates()
     }
 
-    /** Must hold [lock]. */
+    /** Must hold [lock]. Call [watchStates] after if [statesStale] is set. */
     private fun connectionFor(device: KnownDevice): LedConnection {
         val existing = connections[device.address]
         if (existing != null && existing.family == device.family) return existing
@@ -127,7 +133,7 @@ class BleLedController(
         val connection = LedConnection(device.address, device.family, appContext, environment, scope)
         if (sessions > 0) connection.setPinned(true)
         connections[device.address] = connection
-        watchStates()
+        statesStale = true
         return connection
     }
 
@@ -138,13 +144,15 @@ class BleLedController(
         for (address in removed) {
             connections.remove(address)?.close()
             deviceStates.forget(address)
+            statesStale = true
         }
         devices.forEach(::connectionFor)
-        if (removed.isNotEmpty()) watchStates()
+        if (statesStale) watchStates()
     }
 
     /** Must hold [lock]. */
     private fun watchStates() {
+        statesStale = false
         statesJob?.cancel()
         val current = connections.values.toList()
         if (current.isEmpty()) {

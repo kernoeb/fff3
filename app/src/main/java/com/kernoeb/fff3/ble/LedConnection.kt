@@ -58,7 +58,8 @@ class LedConnection internal constructor(
     private val lock = Any()
     private var linkJob: Job? = null
     private var idleJob: Job? = null
-    private var idleGeneration = 0
+    @Volatile
+    private var lastUse = TimeSource.Monotonic.markNow()
     @Volatile
     private var pinned = false
 
@@ -81,8 +82,8 @@ class LedConnection internal constructor(
     fun setPinned(value: Boolean) = synchronized(lock) {
         pinned = value
         if (value) {
-            idleGeneration++
             idleJob?.cancel()
+            idleJob = null
             startLink()
         } else {
             scheduleIdleStop()
@@ -105,17 +106,27 @@ class LedConnection internal constructor(
         if (linkJob?.isActive != true) linkJob = scope.launch { runLink() }
     }
 
+    /** Must hold [lock]. One timer per idle period: a drag only moves [lastUse]. */
     private fun scheduleIdleStop() {
         if (pinned) return
-        val generation = ++idleGeneration
-        idleJob?.cancel()
+        lastUse = TimeSource.Monotonic.markNow()
+        if (idleJob?.isActive == true) return
         idleJob = scope.launch {
-            delay(BleTuning.IDLE_DISCONNECT_MS)
-            queue.idle.first { it }
-            synchronized(lock) {
-                if (generation == idleGeneration && !pinned) {
-                    linkJob?.cancel()
-                    linkJob = null
+            val idleFor = BleTuning.IDLE_DISCONNECT_MS.milliseconds
+            while (true) {
+                val left = idleFor - lastUse.elapsedNow()
+                if (left.isPositive()) {
+                    delay(left)
+                    continue
+                }
+                queue.idle.first { it }
+                synchronized(lock) {
+                    if (!pinned && lastUse.elapsedNow() >= idleFor) {
+                        linkJob?.cancel()
+                        linkJob = null
+                        idleJob = null
+                        return@launch
+                    }
                 }
             }
         }
@@ -136,6 +147,8 @@ class LedConnection internal constructor(
                 }
                 _state.value = ConnectionState.Connecting(failures + 1)
                 val wasConnected = connectOnce()
+                // A retry asked while connected is stale: keep the backoff after a drop.
+                if (wasConnected) retrySignal.tryReceive()
                 failures = if (wasConnected) 0 else failures + 1
                 if (!pinned && failures >= BleTuning.UNPINNED_MAX_FAILURES) return queue.clear()
                 val wait = backoff(failures)

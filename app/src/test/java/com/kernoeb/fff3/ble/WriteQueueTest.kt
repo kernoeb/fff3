@@ -172,6 +172,27 @@ class WriteQueueTest {
         assertTrue(h.queue.idle.value)
     }
 
+    @Test
+    fun clearAbortsACommandWaitingForTheLink() = runTest {
+        val link = CompletableDeferred<Unit>()
+        val writes = mutableListOf<ByteArray>()
+        val queue = WriteQueue(scope = backgroundScope, timeSource = testScheduler.timeSource) { frame ->
+            link.await()
+            writes += frame
+            WriteOutcome.Sent
+        }
+        val done = CompletableDeferred<Boolean>()
+        queue.enqueue(Command.Power(true), DomProtocol.encode(Command.Power(true)), done)
+        settle()
+        queue.clear()
+        settle()
+        assertFalse(done.await())
+        link.complete(Unit)
+        settle()
+        assertTrue(writes.isEmpty())
+        assertTrue(queue.idle.value)
+    }
+
     // The writer runs in backgroundScope, which advanceUntilIdle does not wait for.
     private fun TestScope.settle() {
         advanceTimeBy(10_000)

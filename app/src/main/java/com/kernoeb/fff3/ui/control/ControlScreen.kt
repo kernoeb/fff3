@@ -57,15 +57,13 @@ fun ControlScreen(target: ControlTarget, onBack: () -> Unit) {
         ControlViewModel(target, it.repository, it.controller, it.deviceStates)
     }
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val initial by viewModel.initialInputs.collectAsStateWithLifecycle()
     // Drag positions live here, not in the ViewModel: a drag then only redraws the slider and preview.
     val hue = remember { SliderState(value = 0f, trackRange = 0f..359f) }
     val brightness = remember { SliderState(value = 100f, trackRange = 0f..100f) }
-    LaunchedEffect(initial) {
-        initial?.let {
-            hue.value = it.hue
-            brightness.value = it.brightness
-        }
+    LaunchedEffect(viewModel) {
+        val inputs = viewModel.currentInputs()
+        hue.value = inputs.hue
+        brightness.value = inputs.brightness
     }
 
     Scaffold(
