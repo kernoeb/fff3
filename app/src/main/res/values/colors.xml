@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches the Compose surface for the default accent, so the window never flashes another colour. -->
+    <color name="window_background">#FF16131F</color>
+</resources>

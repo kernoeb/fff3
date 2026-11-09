@@ -1,0 +1,79 @@
+package com.kernoeb.fff3.data
+
+import com.kernoeb.fff3.protocol.Command
+import com.kernoeb.fff3.protocol.LedFamily
+import com.kernoeb.fff3.protocol.Rgb
+
+/** Everything fff3 stores except the per-device last state. */
+data class AppData(
+    val devices: List<KnownDevice> = emptyList(),
+    val groups: List<DeviceGroup> = emptyList(),
+    val favourites: List<Favourite> = emptyList(),
+    val settings: Settings = Settings(),
+)
+
+/**
+ * A strip you have added. [address] is the Bluetooth MAC address in upper case.
+ * [associationId] is set when it was added through the Companion Device Manager.
+ */
+data class KnownDevice(
+    val address: String,
+    val advertisedName: String,
+    val family: LedFamily,
+    val label: String? = null,
+    val associationId: Int? = null,
+) {
+    val displayName: String get() = label?.takeIf { it.isNotBlank() } ?: advertisedName
+}
+
+data class DeviceGroup(
+    val id: String,
+    val name: String,
+    val memberAddresses: List<String>,
+)
+
+/**
+ * A saved colour or scene: the [commands] to send, in order.
+ * [family] is set when the commands only make sense for one family (effects, scenes); null means any.
+ */
+data class Favourite(
+    val id: String,
+    val name: String,
+    val commands: List<Command>,
+    val family: LedFamily? = null,
+)
+
+data class Settings(
+    val accentFollowsStrip: Boolean = true,
+)
+
+/**
+ * What fff3 last sent to a strip. The strips cannot report their state, so this is our best guess.
+ * Null fields are unknown.
+ */
+data class LedState(
+    val power: Boolean? = null,
+    val color: Rgb? = null,
+    val brightness: Int? = null,
+    val effectId: Int? = null,
+    val sceneId: Int? = null,
+    val speed: Int? = null,
+    val micEnabled: Boolean? = null,
+) {
+    /** The state after the strip received [command]. */
+    fun after(command: Command): LedState = when (command) {
+        is Command.Power -> copy(power = command.on)
+        is Command.Color -> copy(color = command.rgb, effectId = null, sceneId = null)
+        is Command.Brightness -> copy(brightness = command.percent.coerceIn(0, 100))
+        is Command.Effect -> copy(
+            effectId = command.id,
+            sceneId = null,
+            speed = command.speed?.coerceIn(0, 100) ?: speed,
+        )
+        is Command.Speed -> copy(speed = command.percent.coerceIn(0, 100))
+        is Command.Scene -> copy(sceneId = command.id, effectId = null)
+        is Command.MicEnabled -> copy(micEnabled = command.on)
+        is Command.MicMode, is Command.MicSensitivity, is Command.WireOrder, is Command.PixelCount,
+        is Command.ClockSync, is Command.Schedule -> this
+    }
+}

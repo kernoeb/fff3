@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">fff3</string>
+
+    <string name="action_back">Back</string>
+    <string name="action_settings">Settings</string>
+    <string name="action_more">More options</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_save">Save</string>
+    <string name="action_create">Create</string>
+    <string name="action_rename">Rename</string>
+    <string name="action_remove">Remove</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_add">Add</string>
+
+    <string name="connection_idle">Not connected</string>
+    <string name="connection_connecting">Connecting…</string>
+    <string name="connection_connected">Connected</string>
+    <string name="connection_waiting">Out of reach, retrying</string>
+    <string name="connection_bluetooth_off">Bluetooth is off</string>
+    <string name="connection_permission">Permission needed</string>
+    <string name="connection_unsupported">No Bluetooth LE</string>
+
+    <string name="home_add_strip">Add strip</string>
+    <string name="home_strips">Strips</string>
+    <string name="home_groups">Groups</string>
+    <string name="home_new_group">New group</string>
+    <string name="home_empty_title">No strips yet</string>
+    <string name="home_empty_body">Add a strip to control it from here. You only do this once.</string>
+    <string name="home_permission_body">fff3 needs the Nearby devices permission to talk to your strips.</string>
+    <string name="home_permission_allow">Allow</string>
+    <string name="home_permission_settings">Open app settings</string>
+    <string name="home_bluetooth_off_body">Bluetooth is off. Turn it on to control your strips.</string>
+    <string name="home_bluetooth_on">Turn on</string>
+    <string name="home_unsupported_body">This phone has no Bluetooth LE, so fff3 cannot work here.</string>
+    <string name="home_power">Power</string>
+    <string name="home_group_summary">%1$d strips, %2$d connected</string>
+    <string name="home_rename_title">Rename strip</string>
+    <string name="home_rename_label">Name</string>
+    <string name="home_remove_title">Remove %1$s?</string>
+    <string name="home_remove_body">You can add it again later.</string>
+    <string name="home_group_title">New group</string>
+    <string name="home_group_name">Group name</string>
+
+    <string name="control_not_found">This strip or group no longer exists.</string>
+    <string name="control_members_connected">%1$d of %2$d connected</string>
+    <string name="control_on">On</string>
+    <string name="control_off">Off</string>
+    <string name="control_colour">Colour</string>
+    <string name="control_brightness">Brightness</string>
+    <string name="control_white">White</string>
+    <string name="control_warm_white">Warm white</string>
+    <string name="control_members">Strips in this group</string>
+
+    <string name="add_title">Add a strip</string>
+    <string name="add_pair_title">Find with Android</string>
+    <string name="add_pair_body">Android searches for nearby strips and asks you to pick one. Location must be on while it searches.</string>
+    <string name="add_pair_button">Find strips</string>
+    <string name="add_pair_unavailable">This phone cannot pair this way. Use the scan below.</string>
+    <string name="add_scan_title">Scan yourself</string>
+    <string name="add_scan_body">Use this if Android does not find your strip.</string>
+    <string name="add_scan_button">Scan</string>
+    <string name="add_scan_stop">Stop</string>
+    <string name="add_scan_empty">No strips found yet. Make sure the strip has power and no other phone is connected to it.</string>
+    <string name="add_already_added">Already added</string>
+    <string name="add_scan_permission">fff3 needs the Nearby devices permission to scan.</string>
+    <string name="add_device_summary">%1$s, %2$s, signal %3$d dBm</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_accent_title">Accent follows the strip colour</string>
+    <string name="settings_accent_body">The app takes the colour of the strip you used last.</string>
+    <string name="settings_version">Version</string>
+    <string name="settings_frame_interval">Time between frames</string>
+    <string name="settings_frame_interval_value">%1$d ms</string>
+</resources>
