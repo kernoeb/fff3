@@ -28,7 +28,7 @@ class SystemTargetTest {
         val target = SystemTarget.resolve(AppData(devices = listOf(a, b), groups = listOf(desk, all)), chosen = null)
         assertEquals(listOf(ControlTarget.Group("g-all")), target.targets)
         assertEquals(listOf("AA", "BB"), target.addresses)
-        assertNull(target.name)
+        assertEquals("All", target.name)
         assertEquals(Route.Control(ControlTarget.Group("g-all")), target.route)
     }
 
@@ -37,6 +37,7 @@ class SystemTargetTest {
         val target = SystemTarget.resolve(AppData(devices = listOf(a, b)), chosen = null)
         assertEquals(listOf(ControlTarget.Device("AA"), ControlTarget.Device("BB")), target.targets)
         assertEquals(Route.Home, target.route)
+        assertNull(target.name)
     }
 
     @Test
@@ -50,7 +51,7 @@ class SystemTargetTest {
     fun `a chosen device that was removed falls back to every strip`() {
         val target = SystemTarget.resolve(AppData(devices = listOf(b)), ControlTarget.Device("AA"))
         assertEquals(listOf(ControlTarget.Device("BB")), target.targets)
-        assertNull(target.name)
+        assertEquals(b.displayName, target.name)
     }
 
     @Test

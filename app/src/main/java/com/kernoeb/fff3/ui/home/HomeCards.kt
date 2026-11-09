@@ -208,8 +208,6 @@ fun GroupCard(
 @Composable
 fun AllStripsCard(
     summary: MemberSummary,
-    hasGroup: Boolean,
-    onOpen: (() -> Unit)?,
     onMakeGroup: () -> Unit,
     onPower: (Boolean) -> Unit,
     onBrightness: (Int) -> Unit,
@@ -219,25 +217,23 @@ fun AllStripsCard(
         title = stringResource(R.string.home_all_strips),
         subtitle = groupSubtitle(summary),
         summary = summary,
-        onOpen = onOpen,
+        onOpen = null,
         onPower = onPower,
         onBrightness = onBrightness,
         actions = emptyList(),
         modifier = modifier,
-        footer = if (hasGroup) null else {
-            {
-                Row(
-                    Modifier.fillMaxWidth().padding(start = 12.dp, end = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        stringResource(R.string.home_all_group_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f),
-                    )
-                    TextButton(onClick = onMakeGroup) { Text(stringResource(R.string.home_all_group_make)) }
-                }
+        footer = {
+            Row(
+                Modifier.fillMaxWidth().padding(start = 12.dp, end = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    stringResource(R.string.home_all_group_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = onMakeGroup) { Text(stringResource(R.string.home_all_group_make)) }
             }
         },
     )

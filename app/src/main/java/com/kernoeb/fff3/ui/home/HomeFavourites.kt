@@ -185,7 +185,7 @@ private fun TargetPicker(
     var open by remember { mutableStateOf(false) }
     val allLabel = stringResource(R.string.home_all_strips)
     val options = buildList {
-        if (state.devices.size >= 2) add(HomeTarget.AllStrips to allLabel)
+        if (state.all != null) add(HomeTarget.AllStrips to allLabel)
         state.groups.forEach { add(HomeTarget.One(ControlTarget.Group(it.group.id)) to it.group.name) }
         state.devices.forEach { add(HomeTarget.One(ControlTarget.Device(it.device.address)) to it.device.displayName) }
     }

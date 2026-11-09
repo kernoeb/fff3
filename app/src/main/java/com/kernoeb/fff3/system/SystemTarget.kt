@@ -6,13 +6,13 @@ import com.kernoeb.fff3.data.Favourite
 import com.kernoeb.fff3.data.LedState
 import com.kernoeb.fff3.protocol.Command
 import com.kernoeb.fff3.protocol.Rgb
-import com.kernoeb.fff3.ui.home.findAllStripsGroup
+import com.kernoeb.fff3.ui.home.wholeSetOf
 import com.kernoeb.fff3.ui.home.previewColour
 import com.kernoeb.fff3.ui.navigation.Route
 
 /**
  * What the tile, widget and shortcuts act on: a chosen device or group, or else every strip.
- * [name] is null when it means every strip.
+ * [name] is null when it means every strip and no group or single strip can stand for it.
  */
 data class SystemTarget(
     val targets: List<ControlTarget>,
@@ -44,14 +44,12 @@ data class SystemTarget(
                 }
                 null -> Unit
             }
-            // A group of every strip (the usual "All") gives one Control screen instead of Home.
-            val allGroup = findAllStripsGroup(all, data.groups)
-            val targets = when {
-                allGroup != null -> listOf(ControlTarget.Group(allGroup.id))
-                all.size == 1 -> listOf(ControlTarget.Device(all.single()))
-                else -> all.map { ControlTarget.Device(it) }
+            // A group of every strip (the usual "All") gives one Control screen instead of Home, and its name.
+            return when (val standIn = wholeSetOf(all, data.groups).standIn) {
+                is ControlTarget.Group -> SystemTarget(listOf(standIn), all, data.groups.first { it.id == standIn.id }.name)
+                is ControlTarget.Device -> SystemTarget(listOf(standIn), all, data.devices.first { it.address == standIn.address }.displayName)
+                null -> SystemTarget(all.map { ControlTarget.Device(it) }, all, null)
             }
-            return SystemTarget(targets, all, null)
         }
     }
 }

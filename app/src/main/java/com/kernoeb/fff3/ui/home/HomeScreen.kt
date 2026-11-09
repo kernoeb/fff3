@@ -88,7 +88,7 @@ fun HomeScreen(
     var managingFavourites by rememberSaveable { mutableStateOf(false) }
     var chosenTarget by rememberSaveable { mutableStateOf<String?>(null) }
     val favouriteTarget = HomeTarget.decode(chosenTarget)
-        ?.takeIf { it == HomeTarget.AllStrips && state.devices.size >= 2 || state.nameOf(it) != null }
+        ?.takeIf { it == HomeTarget.AllStrips && state.all != null || state.nameOf(it) != null }
         ?: defaultHomeTarget(state.devices.map { it.device }, state.groups.map { it.group })
         ?: HomeTarget.AllStrips
 
@@ -130,6 +130,22 @@ fun HomeScreen(
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val listState = rememberLazyListState()
     val hasDevices = state.devices.isNotEmpty()
+    val (wholeGroups, otherGroups) = state.groups.partition { it.group.id in state.wholeGroupIds }
+    val groupCard: @Composable (GroupItem, Modifier) -> Unit = { item, modifier ->
+        val target = HomeTarget.One(ControlTarget.Group(item.group.id))
+        GroupCard(
+            item = item,
+            onOpen = { onOpenControl(target.target) },
+            onPower = { viewModel.setPower(target, it) },
+            onBrightness = { viewModel.setBrightness(target, it) },
+            actions = listOf(
+                CardAction(stringResource(R.string.action_rename)) { dialog = HomeDialog.RenameGroup(item.group) },
+                CardAction(stringResource(R.string.home_group_edit_members)) { dialog = HomeDialog.EditGroup(item.group) },
+                CardAction(stringResource(R.string.action_delete)) { dialog = HomeDialog.DeleteGroup(item.group) },
+            ),
+            modifier = modifier,
+        )
+    }
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -186,12 +202,14 @@ fun HomeScreen(
             if (state.loaded && !hasDevices) {
                 item(key = "empty") { EmptyState(onAddDevice, Modifier.animateItem()) }
             }
+            // A group of every strip takes the place of the "All strips" card, and is not listed again below.
+            items(wholeGroups, key = { "group-" + it.group.id }) { item ->
+                groupCard(item, Modifier.padding(horizontal = 16.dp).animateItem())
+            }
             state.all?.let { all ->
                 item(key = "all") {
                     AllStripsCard(
                         summary = all,
-                        hasGroup = state.allGroupId != null,
-                        onOpen = state.allGroupId?.let { id -> { onOpenControl(ControlTarget.Group(id)) } },
                         onMakeGroup = { viewModel.createAllGroup { id -> chosenTarget = HomeTarget.One(ControlTarget.Group(id)).encode() } },
                         onPower = { viewModel.setPower(HomeTarget.AllStrips, it) },
                         onBrightness = { viewModel.setBrightness(HomeTarget.AllStrips, it) },
@@ -241,7 +259,7 @@ fun HomeScreen(
                         }
                     }
                 }
-                if (state.groups.isEmpty()) {
+                if (otherGroups.isEmpty()) {
                     item(key = "groups-empty") {
                         Text(
                             stringResource(R.string.home_groups_empty),
@@ -251,20 +269,8 @@ fun HomeScreen(
                         )
                     }
                 }
-                items(state.groups, key = { "group-" + it.group.id }) { item ->
-                    val target = HomeTarget.One(ControlTarget.Group(item.group.id))
-                    GroupCard(
-                        item = item,
-                        onOpen = { onOpenControl(target.target) },
-                        onPower = { viewModel.setPower(target, it) },
-                        onBrightness = { viewModel.setBrightness(target, it) },
-                        actions = listOf(
-                            CardAction(stringResource(R.string.action_rename)) { dialog = HomeDialog.RenameGroup(item.group) },
-                            CardAction(stringResource(R.string.home_group_edit_members)) { dialog = HomeDialog.EditGroup(item.group) },
-                            CardAction(stringResource(R.string.action_delete)) { dialog = HomeDialog.DeleteGroup(item.group) },
-                        ),
-                        modifier = Modifier.padding(horizontal = 16.dp).animateItem(),
-                    )
+                items(otherGroups, key = { "group-" + it.group.id }) { item ->
+                    groupCard(item, Modifier.padding(horizontal = 16.dp).animateItem())
                 }
                 if (state.favourites.isEmpty()) {
                     item(key = "favourites-hint") {

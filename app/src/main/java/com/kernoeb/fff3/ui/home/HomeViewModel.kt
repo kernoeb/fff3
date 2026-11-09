@@ -49,10 +49,10 @@ data class HomeUiState(
     val devices: List<DeviceItem> = emptyList(),
     val groups: List<GroupItem> = emptyList(),
     val favourites: List<Favourite> = emptyList(),
-    /** Every strip together. Null with fewer than 2 strips. */
+    /** The built-in "All strips" card. Null with fewer than 2 strips, or when a group holds every strip. */
     val all: MemberSummary? = null,
-    /** The group that holds exactly every strip, if one exists. */
-    val allGroupId: String? = null,
+    /** Groups that hold exactly every strip. Home shows them in place of the "All strips" card. */
+    val wholeGroupIds: Set<String> = emptySet(),
     val bluetooth: BluetoothStatus = BluetoothStatus.Ready,
 ) {
     fun nameOf(target: HomeTarget): String? = when (target) {
@@ -98,13 +98,14 @@ class HomeViewModel(
             val members = group.memberAddresses.mapNotNull(byAddress::get)
             GroupItem(group, members.map { it.device }, summaryOf(members))
         }
+        val wholeSet = wholeSetOf(data.devices.map { it.address }, data.groups)
         HomeUiState(
             loaded = true,
             devices = devices,
             groups = groups,
             favourites = data.favourites,
-            all = if (devices.size >= 2) summaryOf(devices) else null,
-            allGroupId = findAllStripsGroup(data.devices.map { it.address }, data.groups)?.id,
+            all = if (wholeSet.showBuiltIn) summaryOf(devices) else null,
+            wholeGroupIds = wholeSet.groupIds,
             bluetooth = status,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())

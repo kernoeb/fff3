@@ -19,6 +19,7 @@ import com.kernoeb.fff3.music.MusicSync
 import com.kernoeb.fff3.music.StopReason
 import com.kernoeb.fff3.protocol.Rgb
 import com.kernoeb.fff3.system.addressesOf
+import com.kernoeb.fff3.ui.home.wholeSetOf
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -80,13 +81,15 @@ class MusicViewModel(
         music.noAudio,
     ) { data, settings, status, (bpm, beat, latency), noAudio ->
         if (data == null) return@combine MusicUiState(settings = settings, status = status)
+        val wholeSet = wholeSetOf(data.devices.map { it.address }, data.groups)
         val options = buildList {
-            if (data.devices.isNotEmpty()) add(MusicTargetOption(null, null))
+            if (wholeSet.showBuiltIn) add(MusicTargetOption(null, null))
             data.groups.forEach { add(MusicTargetOption(ControlTarget.Group(it.id), it.name)) }
             data.devices.forEach { add(MusicTargetOption(ControlTarget.Device(it.address), it.displayName)) }
         }
-        // A removed strip or group falls back to all strips.
+        // A removed strip or group falls back to all strips, shown as the group of every strip if there is one.
         val chosen = settings.target.takeIf { target -> options.any { it.target == target } }
+            ?: wholeSet.standIn
         // Read once, not collected: while music plays the colours change 30 times a second.
         val states = deviceStates.states.value
         val addresses = data.addressesOf(chosen)

@@ -32,12 +32,32 @@ sealed interface HomeTarget {
 /** Default name for the group that holds every strip. */
 const val ALL_GROUP_NAME = "All"
 
-/** The first group whose members are exactly [deviceAddresses], or null. */
-fun findAllStripsGroup(deviceAddresses: List<String>, groups: List<DeviceGroup>): DeviceGroup? {
-    if (deviceAddresses.isEmpty()) return null
-    val all = deviceAddresses.toSet()
-    return groups.firstOrNull { it.memberAddresses.toSet() == all }
+/**
+ * How a list of targets shows "every strip". A group that holds exactly every strip replaces the
+ * built-in "All strips" entry, so the same strips never show twice.
+ */
+data class WholeSet(
+    /** The user's groups whose members are exactly every saved strip, in saved order. */
+    val groups: List<DeviceGroup>,
+    /** True when the built-in "All strips" entry should show: 2 or more strips and no group above. */
+    val showBuiltIn: Boolean,
+    /** What a list selects when a saved choice means every strip but the built-in entry is hidden. */
+    val standIn: ControlTarget?,
+) {
+    val groupIds: Set<String> = groups.mapTo(HashSet()) { it.id }
 }
+
+fun wholeSetOf(deviceAddresses: List<String>, groups: List<DeviceGroup>): WholeSet {
+    val all = deviceAddresses.toSet()
+    val covering = if (all.isEmpty()) emptyList() else groups.filter { it.memberAddresses.toSet() == all }
+    val standIn = covering.firstOrNull()?.let { ControlTarget.Group(it.id) }
+        ?: all.singleOrNull()?.let { ControlTarget.Device(it) }
+    return WholeSet(covering, showBuiltIn = covering.isEmpty() && all.size >= 2, standIn = standIn)
+}
+
+/** The first group whose members are exactly [deviceAddresses], or null. */
+fun findAllStripsGroup(deviceAddresses: List<String>, groups: List<DeviceGroup>): DeviceGroup? =
+    wholeSetOf(deviceAddresses, groups).groups.firstOrNull()
 
 /** Addresses of the known strips that [target] covers, in device order. */
 fun addressesOf(target: HomeTarget, devices: List<KnownDevice>, groups: List<DeviceGroup>): List<String> =

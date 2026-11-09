@@ -32,6 +32,53 @@ class HomeLogicTest {
     }
 
     @Test
+    fun withoutAGroupOfEveryStripTheBuiltInEntryShows() {
+        val whole = wholeSetOf(listOf(desk.address, bed.address), emptyList())
+        assertTrue(whole.groups.isEmpty())
+        assertTrue(whole.showBuiltIn)
+        assertNull(whole.standIn)
+        assertFalse(wholeSetOf(listOf(desk.address), emptyList()).showBuiltIn)
+        assertEquals(ControlTarget.Device(desk.address), wholeSetOf(listOf(desk.address), emptyList()).standIn)
+    }
+
+    @Test
+    fun aGroupOfEveryStripHidesTheBuiltInEntry() {
+        val all = DeviceGroup("a", "All", listOf(bed.address, desk.address))
+        val whole = wholeSetOf(listOf(desk.address, bed.address), listOf(all))
+        assertEquals(listOf(all), whole.groups)
+        assertEquals(setOf("a"), whole.groupIds)
+        assertFalse(whole.showBuiltIn)
+        assertEquals(ControlTarget.Group("a"), whole.standIn)
+    }
+
+    @Test
+    fun aPartialGroupKeepsTheBuiltInEntry() {
+        val bedroom = DeviceGroup("p", "Bedroom", listOf(bed.address))
+        val whole = wholeSetOf(listOf(desk.address, bed.address), listOf(bedroom))
+        assertTrue(whole.groups.isEmpty())
+        assertTrue(whole.showBuiltIn)
+    }
+
+    @Test
+    fun everyGroupOfEveryStripShowsAndTheFirstStandsIn() {
+        val first = DeviceGroup("a", "All", listOf(desk.address, bed.address))
+        val second = DeviceGroup("b", "House", listOf(bed.address, desk.address))
+        val whole = wholeSetOf(listOf(desk.address, bed.address), listOf(first, second))
+        assertEquals(listOf(first, second), whole.groups)
+        assertFalse(whole.showBuiltIn)
+        assertEquals(ControlTarget.Group("a"), whole.standIn)
+    }
+
+    @Test
+    fun aStripAddedAfterTheGroupBringsTheBuiltInEntryBack() {
+        val all = DeviceGroup("a", "All", listOf(desk.address, bed.address))
+        val whole = wholeSetOf(listOf(desk.address, bed.address, melk.address), listOf(all))
+        assertTrue(whole.groups.isEmpty())
+        assertTrue(whole.showBuiltIn)
+        assertNull(whole.standIn)
+    }
+
+    @Test
     fun groupTargetSkipsMissingMembers() {
         val group = DeviceGroup("g", "Room", listOf(bed.address, "GONE"))
         val target = HomeTarget.One(ControlTarget.Group("g"))
