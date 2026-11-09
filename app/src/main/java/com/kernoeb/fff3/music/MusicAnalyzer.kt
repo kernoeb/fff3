@@ -22,6 +22,10 @@ class MusicFrame(bandCount: Int) {
     var onset = 0f
     /** Loudness before the automatic gain, for silence detection. */
     var rms = 0f
+    /** Band loudness before the automatic gain, for the sound profile of a song. */
+    var rawBass = 0f
+    var rawMid = 0f
+    var rawTreble = 0f
     var beat = false
     /** Estimated tempo, or 0 while unknown. */
     var bpm = 0f
@@ -102,9 +106,12 @@ class MusicAnalyzer(
 
         val gain = 2f.pow((sensitivity - 0.5f) * 3f)
         frame.level = (levelGain.normalise(rms) * gain).coerceIn(0f, 1f)
-        frame.bass = (bassGain.normalise(rmsOf(1, bassEnd)) * gain).coerceIn(0f, 1f)
-        frame.mid = (midGain.normalise(rmsOf(bassEnd + 1, midEnd)) * gain).coerceIn(0f, 1f)
-        frame.treble = (trebleGain.normalise(rmsOf(midEnd + 1, trebleEnd)) * gain).coerceIn(0f, 1f)
+        frame.rawBass = rmsOf(1, bassEnd)
+        frame.rawMid = rmsOf(bassEnd + 1, midEnd)
+        frame.rawTreble = rmsOf(midEnd + 1, trebleEnd)
+        frame.bass = (bassGain.normalise(frame.rawBass) * gain).coerceIn(0f, 1f)
+        frame.mid = (midGain.normalise(frame.rawMid) * gain).coerceIn(0f, 1f)
+        frame.treble = (trebleGain.normalise(frame.rawTreble) * gain).coerceIn(0f, 1f)
         frame.onset = strength
         frame.rms = rms
         frame.brightness = centroid()

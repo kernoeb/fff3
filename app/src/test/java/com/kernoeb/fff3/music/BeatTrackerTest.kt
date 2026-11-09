@@ -58,6 +58,8 @@ class BeatTrackerTest {
         val times = mutableListOf<Double>()
         val states = mutableListOf<BeatLockState>()
         val bpms = mutableListOf<Float>()
+        /** The rounded tempo the screen shows. */
+        val shown = mutableListOf<Int>()
         /** Times of the beats the clock gave, the way the lights see them. */
         val beats = mutableListOf<Double>()
 
@@ -79,10 +81,11 @@ class BeatTrackerTest {
             track.samples.copyInto(hop, 0, offset, offset + hop.size)
             offset += hop.size
             val frame = analyzer.process(hop)
-            tracker.process(frame.onset, frame.rms)
+            tracker.process(frame.onset, frame.rms, frame.rawBass, frame.rawMid, frame.rawTreble)
             result.times += tracker.time
             result.states += tracker.state
             result.bpms += tracker.bpm
+            result.shown += tracker.displayBpm
             if (tracker.state == BeatLockState.Locked) {
                 val beats = tracker.beatsAt(tracker.time)
                 val whole = floor(beats).toLong()
@@ -140,9 +143,11 @@ class BeatTrackerTest {
 
     @Test
     fun tempoChangeRelocksOnTheNewTempo() {
-        val run = run(track(Part(120.0, 12.0), Part(140.0, 18.0)))
+        // Same clicks, no gap: only long evidence moves the tempo, so this takes over 20 s.
+        val run = run(track(Part(120.0, 12.0), Part(140.0, 45.0)))
         assertEquals(120f, run.bpmAt(11.5), 1f)
         assertTrue("locks ${run.tracker.lockCount}", run.tracker.lockCount >= 2)
+        assertEquals(RelockReason.NewTempo, run.tracker.lastReason)
         assertEquals(BeatLockState.Locked, run.states.last())
         assertEquals(140f, run.bpms.last(), 1f)
     }
@@ -155,6 +160,65 @@ class BeatTrackerTest {
         assertEquals(2, run.tracker.lockCount)
         assertEquals(BeatLockState.Locked, run.states.last())
         assertEquals(128f, run.bpms.last(), 1f)
+    }
+
+    private fun music(samples: FloatArray) = Track(samples, emptyList())
+
+    /** Locks within 8 s, then keeps showing [bpm] without ever re-locking. */
+    private fun assertSteady(run: Run, bpm: Int) {
+        val lock = run.firstLock()
+        assertTrue("first lock at $lock s", lock <= 8.0)
+        val from = run.times.indexOfFirst { it >= lock }
+        val states = run.states.drop(from)
+        assertTrue("lost the lock at ${run.times[from + states.indexOfFirst { it != BeatLockState.Locked }]} s", states.all { it == BeatLockState.Locked })
+        val shown = run.shown.drop(from)
+        val wrong = shown.indexOfFirst { it != bpm }
+        assertTrue("showed ${shown.getOrNull(wrong)} at ${run.times.getOrNull(from + wrong)} s", wrong < 0)
+        assertEquals(1, run.tracker.lockCount)
+    }
+
+    /** From [songStart] + 10 s to the end, shows [bpm] and stays locked. */
+    private fun assertRelockedWithin10s(run: Run, songStart: Double, bpm: Int) {
+        val from = run.times.indexOfFirst { it >= songStart + 10.0 }
+        val shown = run.shown.drop(from)
+        val wrong = shown.indexOfFirst { it != bpm }
+        assertTrue("showed ${shown.getOrNull(wrong)} at ${run.times.getOrNull(from + wrong)} s", wrong < 0)
+        assertTrue(run.states.drop(from).all { it == BeatLockState.Locked })
+    }
+
+    @Test
+    fun threeMinuteSongKeepsItsTempoThroughBreakdownAndFills() {
+        // 93 bars at 124 BPM is 3 minutes, with a 16-bar breakdown without drums.
+        val run = run(music(SyntheticMusic.song(124.0, bars = 93, SyntheticMusic.POP, breakdown = 40..55)))
+        assertSteady(run, 124)
+    }
+
+    @Test
+    fun halfTimeSectionKeepsTheTempo() {
+        val run = run(music(SyntheticMusic.song(124.0, bars = 64, SyntheticMusic.POP, halfTime = 24..39)))
+        assertSteady(run, 124)
+    }
+
+    @Test
+    fun playlistWithAGapRelocksOnTheSecondSong() {
+        val first = SyntheticMusic.song(124.0, bars = 31, SyntheticMusic.POP)
+        val second = SyntheticMusic.song(98.0, bars = 24, SyntheticMusic.BALLAD, seed = 2)
+        val run = run(music(SyntheticMusic.withGap(first, 2.0, second)))
+        val secondStart = first.size.toDouble() / sampleRate + 2.0
+        assertEquals(124, run.shown[run.times.indexOfFirst { it >= secondStart - 3.0 }])
+        assertRelockedWithin10s(run, secondStart, 98)
+        assertEquals(RelockReason.Gap, run.tracker.lastReason)
+    }
+
+    @Test
+    fun playlistWithACrossfadeRelocksOnTheSecondSong() {
+        val first = SyntheticMusic.song(124.0, bars = 31, SyntheticMusic.POP)
+        val second = SyntheticMusic.song(98.0, bars = 24, SyntheticMusic.BALLAD, seed = 2)
+        val run = run(music(SyntheticMusic.crossfade(first, second, 4.0)))
+        val secondStart = (first.size.toDouble() - 4.0 * sampleRate) / sampleRate
+        assertEquals(124, run.shown[run.times.indexOfFirst { it >= secondStart - 1.0 }])
+        assertRelockedWithin10s(run, secondStart, 98)
+        assertEquals(RelockReason.SongChange, run.tracker.lastReason)
     }
 
     @Test

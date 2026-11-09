@@ -10,10 +10,12 @@ import android.os.Handler
 import android.os.Looper
 import android.os.Process
 import android.os.SystemClock
+import android.util.Log
 import com.kernoeb.fff3.ble.BleTuning
 import com.kernoeb.fff3.ble.WriteLatency
 import com.kernoeb.fff3.data.AudioOutput
 import com.kernoeb.fff3.protocol.Rgb
+import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -114,6 +116,8 @@ class MusicEngine(
         var shownLocked = false
         var shownBpm = 0
         var latencyShownAt = Long.MIN_VALUE / 2
+        var loggedAt = 0L
+        var loggedLocks = 0
         if (source.capturesPlayback) useOutput(currentOutput(context))
 
         try {
@@ -135,7 +139,7 @@ class MusicEngine(
                 val settings = sync.settings.value
                 analyzer.sensitivity = settings.sensitivity
                 val frame = analyzer.process(hop)
-                tracker.process(frame.onset, frame.rms)
+                tracker.process(frame.onset, frame.rms, frame.rawBass, frame.rawMid, frame.rawTreble)
 
                 val lag = (System.nanoTime() - source.lastSampleNanos) / 1e9
                 captureLag = if (captureLag < 0) lag else captureLag + (lag - captureLag) * CAPTURE_SMOOTHING
@@ -165,7 +169,7 @@ class MusicEngine(
                 if (frame.bpm > 0f) sync.setBpm(frame.bpm.roundToInt())
 
                 val locked = tracker.state == BeatLockState.Locked
-                val bpm = tracker.bpm.roundToInt()
+                val bpm = tracker.displayBpm
                 if (locked != shownLocked || bpm != shownBpm) {
                     shownLocked = locked
                     shownBpm = bpm
@@ -185,6 +189,13 @@ class MusicEngine(
                     )
                 }
 
+                if (now - loggedAt >= LOG_EVERY_MS) {
+                    loggedAt = now
+                    val relocked = tracker.lockCount != loggedLocks
+                    loggedLocks = tracker.lockCount
+                    logBeat(tracker, if (relocked) tracker.lastReason else null)
+                }
+
                 // The link sends one colour per slot: keep it free just before a beat, so the beat goes out at once.
                 val holdForBeat = settings.style == MusicStyle.BeatLock && renderer.untilBeat < HOLD_BEFORE_BEAT_S
                 val due = renderer.beatEdge || (!holdForBeat && now - lastSentAt >= SEND_INTERVAL_MS)
@@ -198,6 +209,20 @@ class MusicEngine(
             calibration?.cancel()
             calibration = null
         }
+    }
+
+    /** One line a second, to read with `adb logcat -s fff3-beat` after playing real music. */
+    private fun logBeat(tracker: BeatTracker, relock: RelockReason?) {
+        Log.d(
+            LOG_TAG,
+            String.format(
+                Locale.ROOT,
+                "t=%.0f est=%.1f conf=%.2f short=%.1f locked=%.2f shown=%d state=%s coast=%b novelty=%.1f challenge=%.1f%s",
+                tracker.time, tracker.heardBpm, tracker.heardConfidence, tracker.shortBpm, tracker.bpm,
+                tracker.displayBpm, tracker.state, tracker.coasting, tracker.novelty,
+                tracker.challengeSeconds, if (relock != null) " relock=$relock" else "",
+            ),
+        )
     }
 
     /** Applies what the screen asked. Returns true when the shown delays may have changed. */
@@ -270,6 +295,8 @@ class MusicEngine(
         const val HOLD_BEFORE_BEAT_S = BleTuning.MIN_FRAME_INTERVAL_MS / 1000.0
         const val CAPTURE_SMOOTHING = 0.02
         const val LATENCY_SHOW_MS = 1_000L
+        const val LOG_EVERY_MS = 1_000L
+        const val LOG_TAG = "fff3-beat"
 
         /** A typical Bluetooth audio delay, used until one is measured: better than none. */
         fun defaultDelay(output: AudioOutput) = if (output == AudioOutput.Bluetooth) 0.18 else 0.0
