@@ -8,8 +8,8 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.kernoeb.fff3.ui.add.AddDeviceScreen
 import com.kernoeb.fff3.ui.control.ControlScreen
-import com.kernoeb.fff3.ui.control.MusicPlaceholderScreen
 import com.kernoeb.fff3.ui.home.HomeScreen
+import com.kernoeb.fff3.ui.music.MusicScreen
 import com.kernoeb.fff3.ui.settings.SettingsScreen
 import com.kernoeb.fff3.ui.strip.StripSettingsScreen
 
@@ -39,7 +39,7 @@ fun AppNavigation(navigator: Navigator, modifier: Modifier = Modifier) {
                 ControlScreen(
                     target = route.target,
                     onBack = navigator::back,
-                    onOpenMusic = { navigator.navigate(Route.Music) },
+                    onOpenMusic = { navigator.navigate(Route.Music(route.target)) },
                 )
             }
             entry<Route.AddDevice> {
@@ -55,8 +55,8 @@ fun AppNavigation(navigator: Navigator, modifier: Modifier = Modifier) {
                     onForgotten = { navigator.openFromLink(Route.Home) },
                 )
             }
-            entry<Route.Music> {
-                MusicPlaceholderScreen(onBack = navigator::back)
+            entry<Route.Music> { route ->
+                MusicScreen(initialTarget = route.target, onBack = navigator::back)
             }
         },
     )

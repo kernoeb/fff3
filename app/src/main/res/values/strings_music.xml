@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="music_title">Music sync</string>
+    <string name="music_start">Start</string>
+    <string name="music_stop">Stop</string>
+    <string name="music_target">Play on</string>
+    <string name="music_all_strips">All strips</string>
+    <string name="music_style">Style</string>
+    <string name="music_sensitivity">Sensitivity</string>
+    <string name="music_sensitivity_low">Loud music</string>
+    <string name="music_sensitivity_high">Quiet room</string>
+    <string name="music_style_pulse">Pulse</string>
+    <string name="music_style_spectrum">Spectrum</string>
+    <string name="music_style_energy">Energy</string>
+    <string name="music_style_calm">Calm</string>
+    <string name="music_style_pulse_body">Each beat flashes a new colour, then fades.</string>
+    <string name="music_style_spectrum_body">Colour follows the sound: bass is red, high notes are blue and violet.</string>
+    <string name="music_style_energy_body">Keeps your strip\'s colour. Brightness follows how loud the music is.</string>
+    <string name="music_style_calm_body">A slow colour drift that breathes with the music. Good for background music.</string>
+    <string name="music_idle">Play some music near your phone, then start.</string>
+    <string name="music_listening">Listening</string>
+    <string name="music_listening_bpm">Listening, about %1$d BPM</string>
+    <string name="music_privacy">Sound is analysed on your phone. It is never recorded or sent anywhere.</string>
+    <string name="music_no_strips">Add a strip first.</string>
+    <string name="music_permission_title">Let fff3 hear the music</string>
+    <string name="music_permission_body">To make your strips follow the music, fff3 listens to the room through the microphone. Sound is analysed on your phone, never recorded or sent anywhere.\n\nAndroid may also ask to show a notification. It lets you stop music sync without opening the app.</string>
+    <string name="music_permission_continue">Continue</string>
+    <string name="music_permission_denied">Music sync needs the microphone. You can allow it in the app settings.</string>
+    <string name="music_permission_settings">Open app settings</string>
+    <string name="music_stopped_mic">Music sync stopped: the microphone is not available. Another app may be using it.</string>
+    <string name="music_stopped_mic_permission">Music sync stopped: the microphone permission was removed.</string>
+    <string name="music_stopped_strips">Music sync stopped: the strips are out of reach or were removed.</string>
+    <string name="music_stopped_bluetooth">Music sync stopped: Bluetooth is off.</string>
+    <string name="music_stopped_bluetooth_permission">Music sync stopped: fff3 needs the Nearby devices permission.</string>
+    <string name="music_channel">Music sync</string>
+    <string name="music_channel_body">Shown while your strips follow the music.</string>
+    <string name="music_notification_title">Music sync is on</string>
+    <string name="music_notification_body">Your strips follow the music the phone hears.</string>
+</resources>

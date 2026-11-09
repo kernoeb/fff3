@@ -14,6 +14,7 @@ import com.kernoeb.fff3.data.LedRepository
 import com.kernoeb.fff3.data.PersistentDeviceStateStore
 import com.kernoeb.fff3.data.Stores
 import com.kernoeb.fff3.data.StripSettingsStore
+import com.kernoeb.fff3.music.MusicSync
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -55,6 +56,9 @@ class AppContainer(context: Context) {
     val pairing: CompanionPairing by lazy { CompanionPairing(appContext) }
 
     val scanner: BleScanner by lazy { BleScanner(bluetooth) }
+
+    /** Phone music mode state, shared by the music screen and `MusicService`. */
+    val music: MusicSync by lazy { MusicSync() }
 }
 
 val Context.appContainer: AppContainer

@@ -15,9 +15,12 @@ class RouteTest {
             Route.AddDevice,
             Route.Settings,
             Route.StripSettings("BE:FF:20:00:00:01"),
-            Route.Music,
+            Route.Music(),
             Route.Control(ControlTarget.Device("BE:FF:20:00:00:01")),
             Route.Control(ControlTarget.Group("0d1f6c2e-8a1b-4f6e-9a55-1c2d3e4f5a6b")),
+            Route.Music(),
+            Route.Music(ControlTarget.Device("BE:FF:20:00:00:01")),
+            Route.Music(ControlTarget.Group("0d1f6c2e-8a1b-4f6e-9a55-1c2d3e4f5a6b")),
         )
         for (route in routes) assertEquals(route, Route.decode(route.encode()))
     }
