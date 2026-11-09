@@ -18,9 +18,9 @@ class ClockSyncerTest {
         val states = MutableStateFlow<Map<String, ConnectionState>>(emptyMap())
         val sent = mutableListOf<Pair<ControlTarget, List<Command>>>()
         override val connectionStates: StateFlow<Map<String, ConnectionState>> = states
-        override fun send(target: ControlTarget, command: Command) = send(target, listOf(command))
-        override fun send(target: ControlTarget, commands: List<Command>) { sent += target to commands }
-        override suspend fun sendAndAwait(target: ControlTarget, commands: List<Command>, timeoutMillis: Long): Boolean {
+        override fun send(target: ControlTarget, command: Command, record: Boolean) = send(target, listOf(command), record)
+        override fun send(target: ControlTarget, commands: List<Command>, record: Boolean) { sent += target to commands }
+        override suspend fun sendAndAwait(target: ControlTarget, commands: List<Command>, timeoutMillis: Long, record: Boolean): Boolean {
             sent += target to commands
             return true
         }

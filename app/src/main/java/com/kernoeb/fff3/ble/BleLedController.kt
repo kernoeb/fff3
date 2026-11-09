@@ -41,7 +41,7 @@ class BleLedController(
     private val connections = mutableMapOf<String, LedConnection>()
     private var sessions = 0
     private var loaded = false
-    private val sentBeforeLoad = mutableListOf<Pair<ControlTarget, List<Command>>>()
+    private val sentBeforeLoad = mutableListOf<Pending>()
     private var statesJob: Job? = null
     private var statesStale = false
 
@@ -54,26 +54,31 @@ class BleLedController(
         }
     }
 
-    override fun send(target: ControlTarget, command: Command) = send(target, listOf(command))
+    override fun send(target: ControlTarget, command: Command, record: Boolean) = send(target, listOf(command), record)
 
-    override fun send(target: ControlTarget, commands: List<Command>) {
+    override fun send(target: ControlTarget, commands: List<Command>, record: Boolean) {
         synchronized(lock) {
             val data = repository.snapshot.value
             if (!loaded || data == null) {
-                sentBeforeLoad += target to commands
+                sentBeforeLoad += Pending(target, commands, record)
                 return
             }
-            dispatch(data, target, commands, waiters = null)
+            dispatch(data, target, commands, waiters = null, record)
         }
     }
 
-    override suspend fun sendAndAwait(target: ControlTarget, commands: List<Command>, timeoutMillis: Long): Boolean {
+    override suspend fun sendAndAwait(
+        target: ControlTarget,
+        commands: List<Command>,
+        timeoutMillis: Long,
+        record: Boolean,
+    ): Boolean {
         val data = repository.snapshot.filterNotNull().first()
         val waiters = mutableListOf<CompletableDeferred<Boolean>>()
         synchronized(lock) {
             // Send earlier buffered commands first, so they cannot overtake these ones.
             if (!loaded) onData(data)
-            dispatch(data, target, commands, waiters)
+            dispatch(data, target, commands, waiters, record)
         }
         if (waiters.isEmpty()) return false
         return withTimeoutOrNull(timeoutMillis) { waiters.awaitAll().all { it } } ?: false
@@ -102,7 +107,7 @@ class BleLedController(
         syncConnections(data.devices)
         if (!loaded) {
             loaded = true
-            sentBeforeLoad.forEach { (target, commands) -> dispatch(data, target, commands, waiters = null) }
+            sentBeforeLoad.forEach { dispatch(data, it.target, it.commands, waiters = null, it.record) }
             sentBeforeLoad.clear()
         }
     }
@@ -113,6 +118,7 @@ class BleLedController(
         target: ControlTarget,
         commands: List<Command>,
         waiters: MutableList<CompletableDeferred<Boolean>>?,
+        record: Boolean,
     ) {
         val members = when (target) {
             is ControlTarget.Device -> data.devices.filter { it.address == target.address }
@@ -123,9 +129,9 @@ class BleLedController(
         }
         for (device in members) {
             val connection = connectionFor(device)
-            for (command in commands) {
+            deviceStates.queueAll(device.address, commands, record) { command ->
                 val done = waiters?.let { CompletableDeferred<Boolean>().also(it::add) }
-                if (connection.send(command, done)) deviceStates.record(device.address, command)
+                connection.send(command, done)
             }
         }
         if (statesStale) watchStates()
@@ -147,9 +153,9 @@ class BleLedController(
     private fun syncConnections(devices: List<KnownDevice>) {
         val wanted = devices.associateBy { it.address }
         val removed = connections.keys - wanted.keys
+        // The saved state stays: Undo on Home brings the strip back, and a confirmed forget clears it.
         for (address in removed) {
             connections.remove(address)?.close()
-            deviceStates.forget(address)
             statesStale = true
         }
         devices.forEach(::connectionFor)
@@ -169,5 +175,19 @@ class BleLedController(
             combine(current.map { c -> c.state.map { c.address to it } }) { it.toMap() }
                 .collect { _connectionStates.value = it }
         }
+    }
+
+    private class Pending(val target: ControlTarget, val commands: List<Command>, val record: Boolean)
+}
+
+/** Queues each command with [queue], and records the ones it took unless [save] is false. */
+internal inline fun DeviceStateStore.queueAll(
+    address: String,
+    commands: List<Command>,
+    save: Boolean,
+    queue: (Command) -> Boolean,
+) {
+    for (command in commands) {
+        if (queue(command) && save) record(address, command)
     }
 }

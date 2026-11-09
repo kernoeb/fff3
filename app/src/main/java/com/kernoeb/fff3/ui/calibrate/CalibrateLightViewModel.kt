@@ -147,7 +147,8 @@ class CalibrateLightViewModel(
             phase.value = CalibrationPhase.Running(0, FLASHES)
             camera.setMode(LightCamera.Mode.Settle)
             val ready = listOf(Command.Power(true), Command.Brightness(100), Command.Color(COLOURS[0]))
-            if (!controller.sendAndAwait(target, ready)) return fail(CalibrationFailure.NotReached)
+            // Flashes are not recorded, so the saved state stays the user's; restore records it again.
+            if (!controller.sendAndAwait(target, ready, record = false)) return fail(CalibrationFailure.NotReached)
             delay(SETTLE_MS)
             camera.setMode(LightCamera.Mode.Measure)
             delay(LOCK_MS)
@@ -214,7 +215,7 @@ class CalibrateLightViewModel(
         frameWrites.listener = FrameWrites.Listener { address, frame, at ->
             if (address == device.address && frame.contentEquals(expected)) written.complete(at)
         }
-        controller.send(ControlTarget.Device(device.address), command)
+        controller.send(ControlTarget.Device(device.address), command, record = false)
         return withTimeoutOrNull(WRITE_WAIT_MS) { written.await() }
     }
 
@@ -253,7 +254,12 @@ internal fun restoreCommands(state: LedState?): List<Command> = buildList {
         state?.sceneId != null -> add(Command.Scene(state.sceneId))
         else -> add(Command.Color(state?.color ?: Rgb.fromKelvin(WARM_WHITE_K)))
     }
-    if (state?.power == false) add(Command.Power(false))
+    when (state?.power) {
+        false -> add(Command.Power(false))
+        // The calibration turned the strip on, so an unknown power is now known.
+        null -> add(Command.Power(true))
+        true -> Unit
+    }
 }
 
 private const val WARM_WHITE_K = 2700

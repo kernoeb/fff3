@@ -120,7 +120,7 @@ class StripSettingsViewModel(
      * The user compares the strip with the colour on screen.
      */
     fun testWireOrder(order: ChannelOrder) {
-        // A test cut short has not put the colour back yet, so the state holds a test colour.
+        // Keep the colour from before the first of several quick tests.
         if (testJob?.isActive != true) restoreColour = state.value.color
         testJob?.cancel()
         testJob = viewModelScope.launch {
@@ -129,7 +129,7 @@ class StripSettingsViewModel(
                 if (!sendWireOrder(listOf(Command.WireOrder(order), Command.Power(false), Command.Power(true)))) return@launch
                 for (colour in TEST_COLOURS) {
                     testing.value = colour
-                    controller.send(target, Command.Color(colour))
+                    controller.send(target, Command.Color(colour), record = false)
                     delay(TEST_STEP_MS)
                 }
             } finally {

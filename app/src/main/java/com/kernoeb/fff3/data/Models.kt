@@ -92,6 +92,15 @@ data class LedState(
     }
 }
 
+/** False for commands that leave [LedState] as it was, such as a clock sync or a schedule. */
+val Command.changesState: Boolean
+    get() = when (this) {
+        is Command.Power, is Command.Color, is Command.Brightness, is Command.Effect, is Command.Speed,
+        is Command.Scene, is Command.MicEnabled -> true
+        is Command.MicMode, is Command.MicSensitivity, is Command.WireOrder, is Command.PixelCount,
+        is Command.ClockSync, is Command.Schedule -> false
+    }
+
 /**
  * What all these strips agree on. A field is null when any strip does not know it or two strips differ,
  * so a group with one unknown member shows as unknown.

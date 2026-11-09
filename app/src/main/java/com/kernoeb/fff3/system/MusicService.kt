@@ -27,6 +27,7 @@ import com.kernoeb.fff3.data.LedState
 import com.kernoeb.fff3.data.MusicSource
 import com.kernoeb.fff3.music.MicSource
 import com.kernoeb.fff3.music.MusicEngine
+import com.kernoeb.fff3.music.musicRestoreCommands
 import com.kernoeb.fff3.music.PlaybackSource
 import com.kernoeb.fff3.music.MusicStatus
 import com.kernoeb.fff3.music.StopReason
@@ -196,7 +197,8 @@ class MusicService : Service() {
             }
             val states = container.deviceStates.states.value
             previous = addresses.associateWith { states[it] }
-            addresses.forEach { container.controller.send(ControlTarget.Device(it), Command.Power(true)) }
+            // Music light is not recorded, so the saved state stays the user's; endRun restores and records it.
+            addresses.forEach { container.controller.send(ControlTarget.Device(it), Command.Power(true), record = false) }
 
             val baseColor = addresses.firstNotNullOfOrNull { states[it]?.color }
             val controller = container.controller
@@ -214,7 +216,7 @@ class MusicService : Service() {
                         container.repository.updateSettings { it.copy(outputDelaysMs = it.outputDelaysMs + (output to millis)) }
                     }
                 },
-                onColor = { rgb -> addresses.forEach { controller.send(ControlTarget.Device(it), Command.Color(rgb)) } },
+                onColor = { rgb -> addresses.forEach { controller.send(ControlTarget.Device(it), Command.Color(rgb), record = false) } },
                 onFailure = { reason -> scope.launch { finish(reason) } },
             )
             this@MusicService.engine = engine
@@ -256,15 +258,7 @@ class MusicService : Service() {
         engine = null
         val controller = container.controller
         for ((address, state) in previous) {
-            val restore = buildList {
-                when {
-                    state?.effectId != null -> add(Command.Effect(state.effectId, state.speed))
-                    state?.sceneId != null -> add(Command.Scene(state.sceneId))
-                    state?.color != null -> add(Command.Color(state.color))
-                }
-                if (state?.power == false) add(Command.Power(false))
-            }
-            if (restore.isNotEmpty()) controller.send(ControlTarget.Device(address), restore)
+            controller.send(ControlTarget.Device(address), musicRestoreCommands(state))
         }
         previous = emptyMap()
     }

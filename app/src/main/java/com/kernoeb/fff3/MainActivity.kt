@@ -46,6 +46,8 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         session?.close()
         session = null
+        // A swipe from recents can kill the process before the next timed save.
+        appContainer.deviceStates.flush()
         super.onStop()
     }
 

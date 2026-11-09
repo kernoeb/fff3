@@ -8,6 +8,7 @@ import androidx.datastore.core.DataStoreFactory
 import androidx.datastore.core.Serializer
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.dataStoreFile
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
@@ -46,7 +47,12 @@ object Stores {
             throw CorruptionException("Cannot read store", e)
         }
 
-        override suspend fun writeTo(t: T, output: OutputStream) = write(t, output)
+        // The codecs write field by field; one buffered write avoids a system call for each.
+        override suspend fun writeTo(t: T, output: OutputStream) {
+            val buffer = ByteArrayOutputStream()
+            write(t, buffer)
+            buffer.writeTo(output)
+        }
     }
 
     private fun <T> resetOnCorruption(name: String, default: T) = ReplaceFileCorruptionHandler { e ->
