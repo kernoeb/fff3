@@ -36,6 +36,9 @@ interface LedRepository {
     suspend fun saveFavourite(favourite: Favourite)
     suspend fun deleteFavourite(id: String)
 
+    /** Puts favourites in the order of [ids]. Favourites missing from [ids] keep their place at the end. */
+    suspend fun reorderFavourites(ids: List<String>)
+
     suspend fun updateSettings(transform: (Settings) -> Settings)
 }
 
@@ -98,6 +101,10 @@ class DataStoreLedRepository(
         data.copy(favourites = data.favourites.filterNot { it.id == id })
     }
 
+    override suspend fun reorderFavourites(ids: List<String>) = update { data ->
+        data.copy(favourites = data.favourites.inOrderOf(ids))
+    }
+
     override suspend fun updateSettings(transform: (Settings) -> Settings) = update { data ->
         data.copy(settings = transform(data.settings))
     }
@@ -105,4 +112,10 @@ class DataStoreLedRepository(
     private suspend fun update(transform: (AppData) -> AppData) {
         store.updateData(transform)
     }
+}
+
+/** Sorts by position in [ids]; items not in [ids] go last, in their current order. */
+internal fun List<Favourite>.inOrderOf(ids: List<String>): List<Favourite> {
+    val position = ids.withIndex().associate { (index, id) -> id to index }
+    return sortedBy { position[it.id] ?: Int.MAX_VALUE }
 }
