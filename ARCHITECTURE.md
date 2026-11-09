@@ -38,6 +38,8 @@ val controller: LedController
 val pairing: CompanionPairing
 val scanner: BleScanner
 val appScope: CoroutineScope
+val clockSync: ClockSyncer          // sends ClockSync on each connect; syncedAt by address
+val stripSettings: StripSettingsStore  // wire order and schedules we sent (strips are write-only)
 ```
 
 In a composable, create a ViewModel from it with `appViewModel { MyViewModel(it.repository, it.controller) }` (`ui/AppViewModels.kt`). Inside a navigation entry, the ViewModel is scoped to that entry.
@@ -130,7 +132,7 @@ The theme is always dark. Accents come from `seed`; the app root passes the colo
 
 ### Navigation: `ui/navigation/`
 
-`Route` is `Home`, `Control(target)`, `AddDevice` or `Settings`. `AppNavigation.kt` maps routes to screens with Navigation 3. `Navigator.navigate(route)` and `Navigator.back()` change the back stack.
+`Route` is `Home`, `Control(target)`, `AddDevice`, `Settings` or `StripSettings(address)` (rename, timers, wire order, forget: open it from a strip overflow menu). `AppNavigation.kt` maps routes to screens with Navigation 3. `Navigator.navigate(route)` and `Navigator.back()` change the back stack.
 
 ## Where new work plugs in
 

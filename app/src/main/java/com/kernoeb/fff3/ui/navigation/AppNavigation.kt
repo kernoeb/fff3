@@ -10,6 +10,7 @@ import com.kernoeb.fff3.ui.add.AddDeviceScreen
 import com.kernoeb.fff3.ui.control.ControlScreen
 import com.kernoeb.fff3.ui.home.HomeScreen
 import com.kernoeb.fff3.ui.settings.SettingsScreen
+import com.kernoeb.fff3.ui.strip.StripSettingsScreen
 
 /**
  * Maps each [Route] to its screen. Each entry gets its own ViewModel store, so a screen's
@@ -41,6 +42,13 @@ fun AppNavigation(navigator: Navigator, modifier: Modifier = Modifier) {
             }
             entry<Route.Settings> {
                 SettingsScreen(onBack = navigator::back)
+            }
+            entry<Route.StripSettings> { route ->
+                StripSettingsScreen(
+                    address = route.address,
+                    onBack = navigator::back,
+                    onForgotten = { navigator.openFromLink(Route.Home) },
+                )
             }
         },
     )

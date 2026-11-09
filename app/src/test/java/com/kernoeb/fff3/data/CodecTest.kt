@@ -43,7 +43,7 @@ class CodecTest {
                 Favourite("f1", "Everything", everyCommand, family = LedFamily.MELK_SCENE),
                 Favourite("f2", "Warm", listOf(Command.Color(Rgb.fromKelvin(2700)))),
             ),
-            settings = Settings(accentFollowsStrip = false),
+            settings = Settings(accentFollowsStrip = false, hapticsEnabled = false),
         )
         val bytes = ByteArrayOutputStream().also { AppDataCodec.write(data, it) }.toByteArray()
         assertEquals(data, AppDataCodec.read(ByteArrayInputStream(bytes)))
