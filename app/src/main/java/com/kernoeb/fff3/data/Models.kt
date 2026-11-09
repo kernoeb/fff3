@@ -47,10 +47,17 @@ data class Settings(
     val accentFollowsStrip: Boolean = true,
     val hapticsEnabled: Boolean = true,
     val musicSource: MusicSource = MusicSource.PhoneAudio,
+    /** Beat lock fine-tune in milliseconds: positive makes the lights later. */
+    val musicLightDelayMs: Int = 0,
+    /** Measured time from captured phone audio to sound out of each kind of output. */
+    val outputDelaysMs: Map<AudioOutput, Int> = emptyMap(),
 )
 
 /** What music sync listens to: what the phone plays, or the room through the microphone. */
 enum class MusicSource { PhoneAudio, Microphone }
+
+/** Where the phone plays sound. Each kind has its own delay, measured once and remembered. */
+enum class AudioOutput { Speaker, Wired, Bluetooth, Other }
 
 /**
  * What fff3 last sent to a strip. The strips cannot report their state, so this is our best guess.

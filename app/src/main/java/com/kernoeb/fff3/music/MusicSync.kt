@@ -2,6 +2,7 @@ package com.kernoeb.fff3.music
 
 import com.kernoeb.fff3.ble.ControlTarget
 import com.kernoeb.fff3.data.MusicSource
+import java.util.concurrent.ConcurrentLinkedQueue
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -10,12 +11,38 @@ import kotlinx.coroutines.flow.update
 /**
  * What music sync plays on. [target] null means every known strip.
  * [sensitivity] 0..1: higher reacts to quieter sound and softer beats.
+ * [lightDelayMs] is the saved beat lock fine-tune: positive makes the lights later.
  */
 data class MusicSettings(
     val target: ControlTarget? = null,
     val style: MusicStyle = MusicStyle.Pulse,
     val sensitivity: Float = 0.5f,
+    val lightDelayMs: Int = 0,
 )
+
+/** Beat lock state for the screen. [bpm] is 0 while listening. */
+data class BeatStatus(val locked: Boolean = false, val bpm: Int = 0)
+
+/**
+ * The delays beat lock compensates, rounded to milliseconds. [output] is null for the microphone,
+ * which hears the sound when the room does. [outputMeasured] is false while [outputMs] is a guess.
+ */
+data class LatencyStatus(
+    val output: OutputDevice? = null,
+    val outputMs: Int = 0,
+    val outputMeasured: Boolean = false,
+    val captureMs: Int = 0,
+    val lightsMs: Int = 0,
+    val calibrating: Boolean = false,
+)
+
+/** What the music screen asks the beat clock to do, handled on the audio thread. */
+sealed interface BeatCommand {
+    /** A tap on the beat, at [nanos] on the [System.nanoTime] clock. */
+    data class Tap(val nanos: Long) : BeatCommand
+    data class ScaleTempo(val factor: Double) : BeatCommand
+    data object Recalibrate : BeatCommand
+}
 
 sealed interface MusicStatus {
     data object Idle : MusicStatus
@@ -42,11 +69,16 @@ class LiveMusic(bandCount: Int) {
     @Volatile var hueColor: Int = 0
     @Volatile var flash: Float = 0f
     @Volatile var level: Float = 0f
+    /** Phase of the beat lock clock, 0..1 from the last beat, or -1 when not locked. */
+    @Volatile var beatPhase: Float = -1f
+    /** 0 to 3: which beat of the bar [beatPhase] counts from. */
+    @Volatile var beatInBar: Int = 0
 
     internal fun clear() {
         bands.fill(0f)
         flash = 0f
         level = 0f
+        beatPhase = -1f
     }
 }
 
@@ -67,7 +99,22 @@ class MusicSync {
     /** True while phone audio capture has heard only digital silence for a few seconds. */
     val noAudio: StateFlow<Boolean> = _noAudio.asStateFlow()
 
+    private val _beat = MutableStateFlow(BeatStatus())
+    /** Beat lock state. Changes on lock, re-lock and tempo fixes, not every beat. */
+    val beat: StateFlow<BeatStatus> = _beat.asStateFlow()
+
+    private val _latency = MutableStateFlow<LatencyStatus?>(null)
+    /** What beat lock compensates, or null while music is off. Changes about once a second at most. */
+    val latency: StateFlow<LatencyStatus?> = _latency.asStateFlow()
+
+    internal val commands = ConcurrentLinkedQueue<BeatCommand>()
+
     val live = LiveMusic(BAND_COUNT)
+
+    /** Ignored while music is off. */
+    fun send(command: BeatCommand) {
+        if (_status.value is MusicStatus.Running) commands.add(command)
+    }
 
     fun updateSettings(transform: (MusicSettings) -> MusicSettings) = _settings.update(transform)
 
@@ -76,6 +123,9 @@ class MusicSync {
         if (status !is MusicStatus.Running) {
             _bpm.value = 0
             _noAudio.value = false
+            _beat.value = BeatStatus()
+            _latency.value = null
+            commands.clear()
             live.clear()
         }
     }
@@ -86,6 +136,14 @@ class MusicSync {
 
     internal fun setBpm(bpm: Int) {
         _bpm.value = bpm
+    }
+
+    internal fun setBeat(beat: BeatStatus) {
+        _beat.value = beat
+    }
+
+    internal fun setLatency(latency: LatencyStatus) {
+        _latency.value = latency
     }
 
     companion object {

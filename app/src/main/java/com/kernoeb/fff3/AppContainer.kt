@@ -7,6 +7,7 @@ import com.kernoeb.fff3.ble.BluetoothEnvironment
 import com.kernoeb.fff3.ble.ClockSyncer
 import com.kernoeb.fff3.ble.CompanionPairing
 import com.kernoeb.fff3.ble.LedController
+import com.kernoeb.fff3.ble.WriteLatency
 import com.kernoeb.fff3.data.DataStoreLedRepository
 import com.kernoeb.fff3.data.DataStoreStripSettingsStore
 import com.kernoeb.fff3.data.DeviceStateStore
@@ -18,6 +19,9 @@ import com.kernoeb.fff3.music.MusicSync
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 /**
  * Every long-lived object, built by hand once per process. Get it with `context.appContainer`.
@@ -45,8 +49,11 @@ class AppContainer(context: Context) {
     val bluetooth: BluetoothEnvironment by lazy { BluetoothEnvironment(appContext) }
 
     val controller: LedController by lazy {
-        BleLedController(appContext, bluetooth, repository, deviceStates, bleScope).also(clockSync::watch)
+        BleLedController(appContext, bluetooth, repository, deviceStates, bleScope, linkLatency).also(clockSync::watch)
     }
+
+    /** How long a colour takes from `controller.send` to the strip, for the music beat clock. */
+    val linkLatency: WriteLatency by lazy { WriteLatency() }
 
     /** Sends the time to each strip on connect. Started by [controller]. */
     val clockSync: ClockSyncer by lazy { ClockSyncer(appScope) }
@@ -58,7 +65,15 @@ class AppContainer(context: Context) {
     val scanner: BleScanner by lazy { BleScanner(bluetooth) }
 
     /** Phone music mode state, shared by the music screen and `MusicService`. */
-    val music: MusicSync by lazy { MusicSync() }
+    val music: MusicSync by lazy {
+        MusicSync().also { music ->
+            appScope.launch {
+                repository.settings.map { it.musicLightDelayMs }.distinctUntilChanged().collect { delay ->
+                    music.updateSettings { it.copy(lightDelayMs = delay) }
+                }
+            }
+        }
+    }
 }
 
 val Context.appContainer: AppContainer

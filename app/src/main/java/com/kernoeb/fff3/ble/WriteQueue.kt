@@ -37,6 +37,8 @@ internal class WriteQueue(
     private val minIntervalMs: Long = BleTuning.MIN_FRAME_INTERVAL_MS,
     private val timeSource: TimeSource.WithComparableMarks = TimeSource.Monotonic,
     private val maxPending: Int = BleTuning.MAX_PENDING_COMMANDS,
+    /** Called with the nanoseconds from enqueue to the last frame written, for each sent command. */
+    private val onSent: (Long) -> Unit = {},
     private val write: suspend (ByteArray) -> WriteOutcome,
 ) {
 
@@ -44,6 +46,7 @@ internal class WriteQueue(
         val key: KClass<out Command>?,
         val frames: List<ByteArray>,
         val waiters: MutableList<CompletableDeferred<Boolean>>,
+        val enqueuedAt: ComparableTimeMark,
     )
 
     private val lock = Any()
@@ -75,7 +78,7 @@ internal class WriteQueue(
                 if (older >= 0) waiters += pending.removeAt(older).waiters
             }
             if (done != null) waiters += done
-            pending.addLast(Item(key, frames, waiters))
+            pending.addLast(Item(key, frames, waiters, timeSource.markNow()))
             while (pending.size > maxPending) {
                 val oldest = pending.indexOfFirst { it.key == null }.takeIf { it >= 0 } ?: 0
                 dropped += pending.removeAt(oldest).waiters
@@ -145,6 +148,7 @@ internal class WriteQueue(
                 }
             }
         }
+        onSent(item.enqueuedAt.elapsedNow().inWholeNanoseconds)
         return true
     }
 

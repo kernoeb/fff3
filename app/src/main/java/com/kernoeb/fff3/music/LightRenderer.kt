@@ -2,6 +2,7 @@ package com.kernoeb.fff3.music
 
 import com.kernoeb.fff3.protocol.Rgb
 import kotlin.math.exp
+import kotlin.math.floor
 import kotlin.math.pow
 
 /** How the lights follow the music. */
@@ -14,6 +15,8 @@ enum class MusicStyle {
     Energy,
     /** Slow colour drift that breathes with the music. */
     Calm,
+    /** Follows its own beat clock, so the lights stay on the beat through quiet parts. */
+    BeatLock,
 }
 
 /**
@@ -30,6 +33,12 @@ class LightRenderer(
     private var value = 0f
     private var flash = 0f
     private var slowLevel = 0f
+    private var lockMix = 0f
+    private var seenEpoch = -1
+    private var lastBeat = Long.MIN_VALUE
+    private var bar = 0
+    private var accent = 0f
+    private var beatHue = baseHue
 
     /** The colour of the last [render], for the visualiser. */
     var color: Rgb = Rgb.Black
@@ -42,7 +51,30 @@ class LightRenderer(
     /** 0..1, the beat flash of the last [render], for the visualiser. */
     val beatFlash: Float get() = flash
 
-    fun render(frame: MusicFrame, style: MusicStyle, dt: Float): Rgb {
+    /** True when the last [render] started a beat of the beat lock clock. */
+    var beatEdge = false
+        private set
+
+    /** Beat lock phase of the last [render], 0..1 from the beat, or -1 when not locked. */
+    var beatPhase = -1f
+        private set
+
+    /** 0 to 3: the beat of the bar [beatPhase] counts from. */
+    var beatInBar = 0
+        private set
+
+    /** Seconds from the last [render] to the next beat it will show, or infinity when not locked. */
+    var untilBeat = Double.POSITIVE_INFINITY
+        private set
+
+    /**
+     * [clock] and [lead] are only used by [MusicStyle.BeatLock]: the colour shows the clock
+     * [lead] seconds after the newest audio, so it is visible when its beat is heard.
+     */
+    fun render(frame: MusicFrame, style: MusicStyle, dt: Float, clock: BeatTracker? = null, lead: Double = 0.0): Rgb {
+        beatEdge = false
+        beatPhase = -1f
+        untilBeat = Double.POSITIVE_INFINITY
         val beatPeriod = if (frame.bpm > 0f) 60f / frame.bpm else 0.5f
         if (frame.beat) flash = 1f else flash *= decay(dt, beatPeriod * 0.3f)
 
@@ -77,6 +109,44 @@ class LightRenderer(
                 v = 0.3f + 0.45f * slowLevel
                 s = 0.85f
             }
+            MusicStyle.BeatLock -> {
+                val locked = clock != null && clock.state == BeatLockState.Locked
+                slowLevel = follow(slowLevel, frame.level, dt, attack = 0.15f, release = 1.5f)
+                lockMix += ((if (locked) 1f else 0f) - lockMix) * (1f - decay(dt, LOCK_FADE))
+                var beatValue = 0f
+                var beatSaturation = 1f
+                flash = 0f
+                if (clock != null && locked) {
+                    val beats = clock.beatsAt(clock.time + lead)
+                    val whole = floor(beats).toLong()
+                    // A new clock starts mid-beat: show that beat as if it had fired, without a flash.
+                    if (clock.epoch != seenEpoch) {
+                        seenEpoch = clock.epoch
+                        lastBeat = whole
+                        startBeat(whole)
+                    } else if (whole > lastBeat) {
+                        lastBeat = whole
+                        beatEdge = true
+                        startBeat(whole)
+                    }
+                    // A phase correction can step back over a beat already shown: hold it, never flash twice.
+                    val phase = if (whole < lastBeat) 0.0 else beats - whole
+                    beatPhase = phase.toFloat()
+                    untilBeat = (lastBeat + 1 - beats) * clock.period
+                    val pulse = exp(-phase / DECAY_BEATS).toFloat()
+                    beatValue = (BEAT_FLOOR + (accent - BEAT_FLOOR) * pulse) * (QUIET_SHARE + (1f - QUIET_SHARE) * slowLevel)
+                    if (beatInBar == 0) beatSaturation = 1f - DOWNBEAT_WHITE * pulse
+                    flash = accent * pulse * lockMix
+                } else {
+                    beatHue += FALLBACK_DRIFT * dt
+                }
+                hue = beatHue
+                targetHue = hue
+                value = follow(value, frame.level, dt, attack = 0.05f, release = 0.4f)
+                val fallback = FALLBACK_FLOOR + FALLBACK_RANGE * value
+                v = fallback + (beatValue - fallback) * lockMix
+                s = 0.9f + (beatSaturation - 0.9f) * lockMix
+            }
         }
         // LEDs are linear while eyes are not: a power curve makes the fades look even.
         val out = v.coerceIn(0f, 1f).pow(GAMMA).coerceAtLeast(MIN_OUTPUT)
@@ -85,6 +155,14 @@ class LightRenderer(
         color = Rgb.fromHsv(hue, s, out)
         fullColor = Rgb.fromHsv(hue, s, 1f)
         return color
+    }
+
+    /** Each beat steps the hue a little; each bar moves to the next palette colour, with a stronger flash. */
+    private fun startBeat(beat: Long) {
+        beatInBar = Math.floorMod(beat, 4L).toInt()
+        if (beatInBar == 0) bar++
+        beatHue = PALETTE[bar % PALETTE.size] + beatInBar * BEAT_HUE_STEP
+        accent = if (beatInBar == 0) 1f else OFFBEAT_ACCENT
     }
 
     private fun follow(current: Float, target: Float, dt: Float, attack: Float, release: Float): Float {
@@ -109,6 +187,17 @@ class LightRenderer(
         const val CALM_DRIFT = 4f
         const val CALM_ENERGY_DRIFT = 18f
         const val CALM_BEAT_NUDGE = 6f
+        val PALETTE = floatArrayOf(285f, 330f, 15f, 200f, 165f, 245f)
+        const val BEAT_HUE_STEP = 18f
+        const val OFFBEAT_ACCENT = 0.62f
+        const val DECAY_BEATS = 0.3
+        const val BEAT_FLOOR = 0.12f
+        const val QUIET_SHARE = 0.65f
+        const val DOWNBEAT_WHITE = 0.3f
+        const val LOCK_FADE = 0.4f
+        const val FALLBACK_DRIFT = 5f
+        const val FALLBACK_FLOOR = 0.15f
+        const val FALLBACK_RANGE = 0.45f
         const val GAMMA = 1.8f
         const val MIN_OUTPUT = 0.01f
     }

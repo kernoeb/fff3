@@ -205,6 +205,13 @@ class MusicService : Service() {
                 sync = container.music,
                 source = audio,
                 baseColor = baseColor,
+                linkLatency = container.linkLatency,
+                outputDelaysMs = data.settings.outputDelaysMs,
+                onOutputDelay = { output, millis ->
+                    container.appScope.launch {
+                        container.repository.updateSettings { it.copy(outputDelaysMs = it.outputDelaysMs + (output to millis)) }
+                    }
+                },
                 onColor = { rgb -> addresses.forEach { controller.send(ControlTarget.Device(it), Command.Color(rgb)) } },
                 onFailure = { reason -> scope.launch { finish(reason) } },
             )

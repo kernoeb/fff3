@@ -43,7 +43,13 @@ class CodecTest {
                 Favourite("f1", "Everything", everyCommand, family = LedFamily.MELK_SCENE),
                 Favourite("f2", "Warm", listOf(Command.Color(Rgb.fromKelvin(2700)))),
             ),
-            settings = Settings(accentFollowsStrip = false, hapticsEnabled = false, musicSource = MusicSource.Microphone),
+            settings = Settings(
+                accentFollowsStrip = false,
+                hapticsEnabled = false,
+                musicSource = MusicSource.Microphone,
+                musicLightDelayMs = -45,
+                outputDelaysMs = mapOf(AudioOutput.Bluetooth to 212, AudioOutput.Speaker to 18),
+            ),
         )
         val bytes = ByteArrayOutputStream().also { AppDataCodec.write(data, it) }.toByteArray()
         assertEquals(data, AppDataCodec.read(ByteArrayInputStream(bytes)))

@@ -7,10 +7,15 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.SystemClock
 import android.provider.Settings
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -33,11 +38,13 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -59,14 +66,22 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kernoeb.fff3.R
 import com.kernoeb.fff3.ble.ControlTarget
+import com.kernoeb.fff3.data.AudioOutput
 import com.kernoeb.fff3.data.MusicSource
+import com.kernoeb.fff3.music.LatencyStatus
 import com.kernoeb.fff3.music.LiveMusic
 import com.kernoeb.fff3.music.MusicStatus
 import com.kernoeb.fff3.music.MusicStyle
@@ -75,6 +90,8 @@ import com.kernoeb.fff3.system.MusicService
 import com.kernoeb.fff3.ui.appViewModel
 import com.kernoeb.fff3.ui.theme.toColor
 import kotlinx.coroutines.isActive
+import kotlin.math.exp
+import kotlin.math.roundToInt
 
 /** Phone music mode: pick where and how, then start. The lights keep going with the screen off. */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -307,6 +324,17 @@ fun MusicScreen(initialTarget: ControlTarget?, onBack: () -> Unit) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (state.settings.style == MusicStyle.BeatLock) {
+                BeatLockPanel(
+                    state = state,
+                    live = viewModel.live,
+                    onTap = viewModel::tap,
+                    onScaleTempo = viewModel::scaleTempo,
+                    onRecalibrate = viewModel::recalibrate,
+                    onLightDelay = viewModel::setLightDelay,
+                    onLightDelayDone = viewModel::saveLightDelay,
+                )
+            }
 
             SectionTitle(R.string.music_sensitivity)
             Slider(value = state.settings.sensitivity, onValueChange = viewModel::setSensitivity)
@@ -369,6 +397,199 @@ private fun Visualiser(live: LiveMusic, running: Boolean, idleColor: Color, back
     )
 }
 
+/** Tempo, tap tempo, delays and the light delay fine-tune, shown while Beat lock is the style. */
+@Composable
+private fun BeatLockPanel(
+    state: MusicUiState,
+    live: LiveMusic,
+    onTap: (Long) -> Unit,
+    onScaleTempo: (Double) -> Unit,
+    onRecalibrate: () -> Unit,
+    onLightDelay: (Int) -> Unit,
+    onLightDelayDone: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    Surface(color = colors.surfaceContainer, shape = RoundedCornerShape(24.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                BeatIndicator(live, state.running, on = colors.primary, off = colors.outlineVariant)
+                Spacer(Modifier.size(12.dp))
+                Text(beatText(state), style = MaterialTheme.typography.titleMedium)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TapButton(enabled = state.running, onTap = onTap, modifier = Modifier.weight(1f))
+                val canScale = state.running && state.beat.locked
+                val double = stringResource(R.string.music_beat_double_description)
+                val half = stringResource(R.string.music_beat_half_description)
+                OutlinedButton(
+                    onClick = { onScaleTempo(2.0) },
+                    enabled = canScale,
+                    modifier = Modifier.height(56.dp).semantics { contentDescription = double },
+                ) { Text(stringResource(R.string.music_beat_double), style = MaterialTheme.typography.titleMedium) }
+                OutlinedButton(
+                    onClick = { onScaleTempo(0.5) },
+                    enabled = canScale,
+                    modifier = Modifier.height(56.dp).semantics { contentDescription = half },
+                ) { Text(stringResource(R.string.music_beat_half), style = MaterialTheme.typography.titleMedium) }
+            }
+            Text(
+                stringResource(R.string.music_beat_tap_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.onSurfaceVariant,
+            )
+            state.latency?.let { latency ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        latencyText(latency),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (latency.output != null) {
+                        TextButton(onClick = onRecalibrate, enabled = !latency.calibrating) {
+                            Text(stringResource(R.string.music_recalibrate))
+                        }
+                    }
+                }
+            }
+            val delay = state.settings.lightDelayMs
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(stringResource(R.string.music_light_delay), style = MaterialTheme.typography.titleSmall)
+                Text(
+                    stringResource(R.string.music_light_delay_value, if (delay > 0) "+$delay" else "$delay"),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
+            val delayState = remember {
+                SliderState(
+                    value = delay.toFloat(),
+                    trackRange = LIGHT_DELAY_MIN.toFloat()..LIGHT_DELAY_MAX.toFloat(),
+                )
+            }
+            LaunchedEffect(delay) { delayState.value = delay.toFloat() }
+            Slider(
+                state = delayState,
+                onValueChange = {
+                    delayState.value = it
+                    onLightDelay((it / LIGHT_DELAY_STEP).roundToInt() * LIGHT_DELAY_STEP)
+                },
+                onValueChangeFinished = onLightDelayDone,
+            )
+            Text(
+                stringResource(R.string.music_light_delay_body),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/**
+ * Reacts on touch down, not on release, so the tap lands on the beat. The time comes from the
+ * touch event, so a busy frame does not shift it.
+ */
+@Composable
+private fun TapButton(enabled: Boolean, onTap: (Long) -> Unit, modifier: Modifier = Modifier) {
+    var pressed by remember { mutableStateOf(false) }
+    val colors = MaterialTheme.colorScheme
+    val label = stringResource(R.string.music_beat_tap_description)
+    Surface(
+        color = when {
+            !enabled -> colors.surfaceContainerHighest
+            pressed -> colors.primary
+            else -> colors.primaryContainer
+        },
+        contentColor = when {
+            !enabled -> colors.onSurfaceVariant
+            pressed -> colors.onPrimary
+            else -> colors.onPrimaryContainer
+        },
+        shape = RoundedCornerShape(16.dp),
+        modifier = modifier
+            .height(56.dp)
+            .semantics {
+                role = Role.Button
+                contentDescription = label
+                if (enabled) onClick { onTap(System.nanoTime()); true }
+            }
+            .pointerInput(enabled) {
+                if (!enabled) return@pointerInput
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    onTap(System.nanoTime() - (SystemClock.uptimeMillis() - down.uptimeMillis) * 1_000_000)
+                    pressed = true
+                    waitForUpOrCancellation()
+                    pressed = false
+                }
+            },
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(stringResource(R.string.music_beat_tap), style = MaterialTheme.typography.titleMedium)
+        }
+    }
+}
+
+/** 4 dots, one per beat of the bar; the current one pulses on the beat clock. Redraws without recomposing. */
+@Composable
+private fun BeatIndicator(live: LiveMusic, running: Boolean, on: Color, off: Color) {
+    val tick = remember { mutableLongStateOf(0L) }
+    LaunchedEffect(running) {
+        if (running) while (isActive) withFrameNanos { tick.longValue = it }
+    }
+    Spacer(
+        Modifier
+            .size(width = 72.dp, height = 24.dp)
+            .drawBehind {
+                tick.longValue
+                val phase = if (running) live.beatPhase else -1f
+                val current = live.beatInBar
+                val step = size.width / 4
+                val radius = size.height * 0.24f
+                for (i in 0 until 4) {
+                    val center = Offset(step * (i + 0.5f), size.height / 2)
+                    if (phase >= 0f && i == current) {
+                        val pulse = exp(-phase * 3.5f)
+                        val accent = if (i == 0) 1.2f else 1f
+                        drawCircle(on, radius * (1f + 0.6f * pulse) * accent, center)
+                    } else {
+                        drawCircle(if (phase >= 0f) on.copy(alpha = 0.3f) else off, radius, center)
+                    }
+                }
+            },
+    )
+}
+
+@Composable
+private fun beatText(state: MusicUiState): String = when {
+    !state.running -> stringResource(R.string.music_beat_off)
+    state.beat.locked -> stringResource(R.string.music_beat_locked, state.beat.bpm)
+    else -> stringResource(R.string.music_beat_listening)
+}
+
+@Composable
+private fun latencyText(latency: LatencyStatus): String {
+    if (latency.calibrating) return stringResource(R.string.music_delay_measuring)
+    val output = latency.output ?: return stringResource(R.string.music_delay_mic, latency.captureMs, latency.lightsMs)
+    val name = output.name ?: stringResource(
+        when (output.kind) {
+            AudioOutput.Speaker -> R.string.music_output_speaker
+            AudioOutput.Wired -> R.string.music_output_wired
+            AudioOutput.Bluetooth -> R.string.music_output_bluetooth
+            AudioOutput.Other -> R.string.music_output_other
+        },
+    )
+    return stringResource(
+        if (latency.outputMeasured) R.string.music_delay_output else R.string.music_delay_output_guess,
+        name,
+        latency.outputMs,
+        latency.lightsMs,
+    )
+}
+
+private const val LIGHT_DELAY_MIN = -100
+private const val LIGHT_DELAY_MAX = 200
+private const val LIGHT_DELAY_STEP = 5
+
 @Composable
 private fun SectionTitle(text: Int) {
     Text(stringResource(text), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
@@ -376,9 +597,11 @@ private fun SectionTitle(text: Int) {
 
 @Composable
 private fun statusText(state: MusicUiState): String = when (val status = state.status) {
-    is MusicStatus.Running ->
-        if (state.bpm > 0) stringResource(R.string.music_listening_bpm, state.bpm)
-        else stringResource(R.string.music_listening)
+    is MusicStatus.Running -> when {
+        state.settings.style == MusicStyle.BeatLock -> beatText(state)
+        state.bpm > 0 -> stringResource(R.string.music_listening_bpm, state.bpm)
+        else -> stringResource(R.string.music_listening)
+    }
     is MusicStatus.Stopped -> when (status.reason) {
         StopReason.User -> idleText(state.source)
         StopReason.CaptureDenied -> stringResource(R.string.music_stopped_capture_denied)
@@ -415,6 +638,7 @@ private fun MusicStyle.labelRes(): Int = when (this) {
     MusicStyle.Spectrum -> R.string.music_style_spectrum
     MusicStyle.Energy -> R.string.music_style_energy
     MusicStyle.Calm -> R.string.music_style_calm
+    MusicStyle.BeatLock -> R.string.music_style_beat_lock
 }
 
 private fun MusicStyle.bodyRes(): Int = when (this) {
@@ -422,6 +646,7 @@ private fun MusicStyle.bodyRes(): Int = when (this) {
     MusicStyle.Spectrum -> R.string.music_style_spectrum_body
     MusicStyle.Energy -> R.string.music_style_energy_body
     MusicStyle.Calm -> R.string.music_style_calm_body
+    MusicStyle.BeatLock -> R.string.music_style_beat_lock_body
 }
 
 private fun Context.hasPermission(permission: String): Boolean =

@@ -18,6 +18,10 @@ class MusicFrame(bandCount: Int) {
     var treble = 0f
     /** Where the sound sits, 0 (low, bass-heavy) to 1 (bright). */
     var brightness = 0f
+    /** Onset strength (spectral flux) of this hop, not normalised. */
+    var onset = 0f
+    /** Loudness before the automatic gain, for silence detection. */
+    var rms = 0f
     var beat = false
     /** Estimated tempo, or 0 while unknown. */
     var bpm = 0f
@@ -101,6 +105,8 @@ class MusicAnalyzer(
         frame.bass = (bassGain.normalise(rmsOf(1, bassEnd)) * gain).coerceIn(0f, 1f)
         frame.mid = (midGain.normalise(rmsOf(bassEnd + 1, midEnd)) * gain).coerceIn(0f, 1f)
         frame.treble = (trebleGain.normalise(rmsOf(midEnd + 1, trebleEnd)) * gain).coerceIn(0f, 1f)
+        frame.onset = strength
+        frame.rms = rms
         frame.brightness = centroid()
         frame.beat = detector.process(strength, sensitivity)
         frame.bpm = detector.bpm

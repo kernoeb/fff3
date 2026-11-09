@@ -7,6 +7,9 @@ import com.kernoeb.fff3.ble.ControlTarget
 import com.kernoeb.fff3.data.DeviceStateStore
 import com.kernoeb.fff3.data.LedRepository
 import com.kernoeb.fff3.data.MusicSource
+import com.kernoeb.fff3.music.BeatCommand
+import com.kernoeb.fff3.music.BeatStatus
+import com.kernoeb.fff3.music.LatencyStatus
 import com.kernoeb.fff3.music.LiveMusic
 import com.kernoeb.fff3.music.MusicSettings
 import com.kernoeb.fff3.music.MusicStatus
@@ -38,6 +41,9 @@ data class MusicUiState(
     val source: MusicSource = MusicSource.PhoneAudio,
     /** Phone audio has heard only silence for a while: capture is likely blocked. */
     val noAudio: Boolean = false,
+    val beat: BeatStatus = BeatStatus(),
+    /** Null while music is off. */
+    val latency: LatencyStatus? = null,
 ) {
     val running: Boolean get() = status is MusicStatus.Running
     val hasStrips: Boolean get() = options.isNotEmpty()
@@ -59,13 +65,15 @@ class MusicViewModel(
         }
     }
 
+    private val tempo = combine(music.bpm, music.beat, music.latency, ::Triple)
+
     val state: StateFlow<MusicUiState> = combine(
         repository.snapshot,
         music.settings,
         music.status,
-        music.bpm,
+        tempo,
         music.noAudio,
-    ) { data, settings, status, bpm, noAudio ->
+    ) { data, settings, status, (bpm, beat, latency), noAudio ->
         if (data == null) return@combine MusicUiState(settings = settings, status = status)
         val options = buildList {
             if (data.devices.isNotEmpty()) add(MusicTargetOption(null, null))
@@ -86,6 +94,8 @@ class MusicViewModel(
             stripColor = addresses.firstNotNullOfOrNull { states[it]?.color },
             source = data.settings.musicSource,
             noAudio = noAudio && status is MusicStatus.Running && status.source == MusicSource.PhoneAudio,
+            beat = beat,
+            latency = latency,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MusicUiState())
 
@@ -105,4 +115,19 @@ class MusicViewModel(
     fun selectStyle(style: MusicStyle) = music.updateSettings { it.copy(style = style) }
 
     fun setSensitivity(value: Float) = music.updateSettings { it.copy(sensitivity = value) }
+
+    /** [nanos] is when the finger touched, on the [System.nanoTime] clock. */
+    fun tap(nanos: Long) = music.send(BeatCommand.Tap(nanos))
+
+    fun scaleTempo(factor: Double) = music.send(BeatCommand.ScaleTempo(factor))
+
+    fun recalibrate() = music.send(BeatCommand.Recalibrate)
+
+    /** Applies at once while the slider moves; [saveLightDelay] keeps it. */
+    fun setLightDelay(millis: Int) = music.updateSettings { it.copy(lightDelayMs = millis) }
+
+    fun saveLightDelay() {
+        val millis = music.settings.value.lightDelayMs
+        viewModelScope.launch { repository.updateSettings { it.copy(musicLightDelayMs = millis) } }
+    }
 }

@@ -7,6 +7,7 @@ import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioPlaybackCaptureConfiguration
 import android.media.AudioRecord
+import android.media.AudioTimestamp
 import android.media.MediaRecorder
 import android.media.projection.MediaProjection
 import android.os.SystemClock
@@ -19,6 +20,10 @@ interface AudioSource {
     val watchesSilence: Boolean
     /** Why music stops when this source fails. */
     val failure: StopReason
+    /** True when sound is captured before the phone plays it, so the output adds a delay. */
+    val capturesPlayback: Boolean
+    /** When the last sample [read] gave was captured, on the [System.nanoTime] clock. */
+    val lastSampleNanos: Long
 
     fun open(): Boolean
     /** Fills all of [out] with samples in -1..1. Returns false when the input stopped working. */
@@ -31,7 +36,12 @@ class MicSource(private val context: Context) : AudioSource {
     override val sampleRate = SAMPLE_RATE
     override val watchesSilence = false
     override val failure = StopReason.MicUnavailable
+    override val capturesPlayback = false
+    override var lastSampleNanos = 0L
+        private set
     private var record: AudioRecord? = null
+    private val clock = CaptureClock()
+    private var framesRead = 0L
 
     @SuppressLint("MissingPermission")
     override fun open(): Boolean {
@@ -77,6 +87,8 @@ class MicSource(private val context: Context) : AudioSource {
             if (read < 0) return false
             filled += read
         }
+        framesRead += out.size
+        lastSampleNanos = clock.captureTime(record, framesRead, SAMPLE_RATE)
         return true
     }
 
@@ -91,7 +103,13 @@ class PlaybackSource(private val context: Context, private val projection: Media
     override val sampleRate = SAMPLE_RATE
     override val watchesSilence = true
     override val failure = StopReason.CaptureUnavailable
+    override val capturesPlayback = true
+    override var lastSampleNanos = 0L
+        private set
     private var record: AudioRecord? = null
+    private val clock = CaptureClock()
+    private var framesRead = 0L
+    private var channels = 1
     private var converter: PcmConverter? = null
     private var floats = FloatArray(0)
     private var shorts: ShortArray? = null
@@ -134,7 +152,7 @@ class PlaybackSource(private val context: Context, private val projection: Media
 
     private fun setUp(built: AudioRecord) {
         record = built
-        val channels = built.channelCount.coerceAtLeast(1)
+        channels = built.channelCount.coerceAtLeast(1)
         val chunk = CHUNK_FRAMES * channels
         converter = PcmConverter(channels, built.sampleRate, SAMPLE_RATE).also {
             converted = FloatArray(it.maxOutput(chunk))
@@ -162,15 +180,20 @@ class PlaybackSource(private val context: Context, private val projection: Media
             if (read == 0) {
                 if (SystemClock.elapsedRealtime() - started > STALL_MS) {
                     out.fill(0f, filled)
+                    lastSampleNanos = System.nanoTime()
                     return true
                 }
                 SystemClock.sleep(POLL_MS)
                 continue
             }
+            framesRead += read / channels
             pendingStart = 0
             pendingEnd = converter.process(floats, read, converted)
             filled = takePending(out, filled)
         }
+        // Samples converted but not handed out yet are newer than the last one we gave.
+        val waiting = ((pendingEnd - pendingStart).toLong() * record.sampleRate / SAMPLE_RATE)
+        lastSampleNanos = clock.captureTime(record, framesRead - waiting, record.sampleRate)
         return true
     }
 
@@ -197,6 +220,33 @@ class PlaybackSource(private val context: Context, private val projection: Media
         const val CAPTURE_BUFFER_BYTES = 512 * 8 * 4
         const val STALL_MS = 100L
         const val POLL_MS = 4L
+    }
+}
+
+/** Turns a count of frames read into the time the last one was captured, from the record's timestamps. */
+private class CaptureClock {
+    private val stamp = AudioTimestamp()
+    private var stampFrame = -1L
+    private var stampNanos = 0L
+    private var reads = 0
+
+    fun captureTime(record: AudioRecord, framesRead: Long, rate: Int): Long {
+        if (reads++ % REFRESH_EVERY == 0 &&
+            record.getTimestamp(stamp, AudioTimestamp.TIMEBASE_MONOTONIC) == AudioRecord.SUCCESS
+        ) {
+            stampFrame = stamp.framePosition
+            stampNanos = stamp.nanoTime
+        }
+        val now = System.nanoTime()
+        if (stampFrame < 0) return now
+        val captured = stampNanos + (framesRead - stampFrame) * 1_000_000_000L / rate
+        // Some devices give odd timestamps: never trust one in the future or far in the past.
+        return if (captured > now || now - captured > MAX_AGE_NANOS) now else captured
+    }
+
+    private companion object {
+        const val REFRESH_EVERY = 16
+        const val MAX_AGE_NANOS = 500_000_000L
     }
 }
 
