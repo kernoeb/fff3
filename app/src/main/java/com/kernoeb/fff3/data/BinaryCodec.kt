@@ -83,7 +83,7 @@ object AppDataCodec {
             accentFollowsStrip = inp.readBoolean(),
             hapticsEnabled = if (version >= 2) inp.readBoolean() else true,
             musicSource = if (version >= 3) MusicSource.valueOf(inp.readUTF()) else MusicSource.PhoneAudio,
-            musicLightDelayMs = if (version >= 4) inp.readInt() else 0,
+            musicLightDelayMs = if (version >= 4) inp.readInt() else Settings().musicLightDelayMs,
             outputDelaysMs = if (version >= 4) inp.readList { AudioOutput.valueOf(readUTF()) to readInt() }.toMap() else emptyMap(),
         )
         return AppData(devices, groups, favourites, settings)

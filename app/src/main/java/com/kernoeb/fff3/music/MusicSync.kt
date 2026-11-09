@@ -17,7 +17,7 @@ data class MusicSettings(
     val target: ControlTarget? = null,
     val style: MusicStyle = MusicStyle.Pulse,
     val sensitivity: Float = 0.5f,
-    val lightDelayMs: Int = 0,
+    val lightDelayMs: Int = 50,
 )
 
 /** Beat lock state for the screen. [bpm] is 0 while listening. */
