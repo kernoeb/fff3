@@ -137,7 +137,7 @@ The theme is always dark. Accents come from `seed`; the app root passes the colo
 
 ## Where new work plugs in
 
-- **New or replaced screen:** replace the composable in `ui/<screen>/` and keep its signature, or add a `Route`, its `encode`/`decode` case, and an `entry` in `AppNavigation.kt`. The current Home, Control, Add device and Settings screens are placeholders.
+- **New or replaced screen:** replace the composable in `ui/<screen>/` and keep its signature, or add a `Route`, its `encode`/`decode` case, and an `entry` in `AppNavigation.kt`.
 - **Colour wheel and effects:** in `ui/control/`. Keep drag state in the composable and read it in draw lambdas, as `ControlScreen` does with `SliderState` and `drawBehind`. Call `controller.send` on each drag event.
 - **Quick Settings tile:** a `TileService` in a new `system/` package. Use `context.appContainer.controller.sendAndAwait(target, listOf(Command.Power(on)))` and read `deviceStates.states` for the tile state. Declare it in the manifest.
 - **Widget:** an `AppWidgetProvider` with `RemoteViews` in `system/`, same calls as the tile. Store each widget's target as `ControlTarget.encode()`.
