@@ -4,13 +4,16 @@ import android.content.Context
 import com.kernoeb.fff3.ble.BleLedController
 import com.kernoeb.fff3.ble.BleScanner
 import com.kernoeb.fff3.ble.BluetoothEnvironment
+import com.kernoeb.fff3.ble.ClockSyncer
 import com.kernoeb.fff3.ble.CompanionPairing
 import com.kernoeb.fff3.ble.LedController
 import com.kernoeb.fff3.data.DataStoreLedRepository
+import com.kernoeb.fff3.data.DataStoreStripSettingsStore
 import com.kernoeb.fff3.data.DeviceStateStore
 import com.kernoeb.fff3.data.LedRepository
 import com.kernoeb.fff3.data.PersistentDeviceStateStore
 import com.kernoeb.fff3.data.Stores
+import com.kernoeb.fff3.data.StripSettingsStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -41,8 +44,13 @@ class AppContainer(context: Context) {
     val bluetooth: BluetoothEnvironment by lazy { BluetoothEnvironment(appContext) }
 
     val controller: LedController by lazy {
-        BleLedController(appContext, bluetooth, repository, deviceStates, bleScope)
+        BleLedController(appContext, bluetooth, repository, deviceStates, bleScope).also(clockSync::watch)
     }
+
+    /** Sends the time to each strip on connect. Started by [controller]. */
+    val clockSync: ClockSyncer by lazy { ClockSyncer(appScope) }
+
+    val stripSettings: StripSettingsStore by lazy { DataStoreStripSettingsStore.create(appContext, appScope) }
 
     val pairing: CompanionPairing by lazy { CompanionPairing(appContext) }
 

@@ -4,7 +4,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.hapticfeedback.HapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModel
@@ -24,6 +29,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 /** The root composable. [link] is a route to open, from an intent; it is cleared once handled. */
@@ -40,9 +46,15 @@ fun Fff3App(link: Route?, onLinkHandled: () -> Unit) {
         }
     }
 
+    val haptics by appViewModel.hapticsEnabled.collectAsStateWithLifecycle()
+    val haptic = LocalHapticFeedback.current
+    val silent = remember { NoHaptics }
+
     Fff3Theme(seed = accent?.toColor()) {
-        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            AppNavigation(navigator)
+        CompositionLocalProvider(LocalHapticFeedback provides if (haptics) haptic else silent) {
+            Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                AppNavigation(navigator)
+            }
         }
     }
 }
@@ -66,7 +78,15 @@ class AppViewModel(deviceStates: DeviceStateStore, repository: LedRepository) : 
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    val hapticsEnabled: StateFlow<Boolean> = repository.settings
+        .map { it.hapticsEnabled }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
     private companion object {
         const val ACCENT_SETTLE_MS = 150L
     }
+}
+
+private object NoHaptics : HapticFeedback {
+    override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) = Unit
 }

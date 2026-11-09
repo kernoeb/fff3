@@ -72,4 +72,37 @@
     <string name="settings_version">Version</string>
     <string name="settings_frame_interval">Time between frames</string>
     <string name="settings_frame_interval_value">%1$d ms</string>
+    <string name="settings_haptics_title">Vibration</string>
+    <string name="settings_haptics_body">Vibrate lightly when you tap switches and sliders.</string>
+    <string name="settings_section_general">General</string>
+    <string name="settings_section_advanced">Advanced</string>
+    <string name="settings_section_about">About</string>
+    <string name="settings_frame_interval_body">%1$d ms between colour frames while you drag. Set in the app build.</string>
+    <string name="settings_licences">Open source licences</string>
+    <string name="settings_licences_body">fff3 uses these libraries, all under the Apache License 2.0:</string>
+    <string name="settings_licences_list">Jetpack Compose and Material 3
+AndroidX Activity, Lifecycle, Navigation 3, DataStore and Profile Installer
+Kotlin and kotlinx.coroutines (JetBrains)
+Material Symbols icons (Google)</string>
+    <string name="action_close">Close</string>
+    <string name="strip_settings_title">Strip settings</string>
+    <string name="strip_not_reached">The strip did not answer. Move closer and try again.</string>
+    <string name="strip_clock_title">Clock</string>
+    <string name="strip_clock_synced">Synced at %1$s</string>
+    <string name="strip_clock_not_synced">Not synced yet. It syncs each time the strip connects.</string>
+    <string name="strip_clock_sync_now">Sync now</string>
+    <string name="strip_schedules_title">Timers</string>
+    <string name="strip_schedules_body">The strip runs these by itself, even when your phone is away.</string>
+    <string name="strip_schedule_on">Turn on</string>
+    <string name="strip_schedule_off">Turn off</string>
+    <string name="strip_wire_order_title">Wire order</string>
+    <string name="strip_wire_order_body">If colours look wrong, pick an order and test it. The strip should show the same colour as the dot.</string>
+    <string name="strip_wire_order_test">Test</string>
+    <string name="strip_wire_order_showing">Showing %1$s</string>
+    <string name="strip_forget">Forget strip</string>
+    <string name="strip_forget_title">Forget %1$s?</string>
+    <string name="strip_forget_body">It leaves every group. You can add it again later.</string>
+    <string name="colour_red">red</string>
+    <string name="colour_green">green</string>
+    <string name="colour_blue">blue</string>
 </resources>

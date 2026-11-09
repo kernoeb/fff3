@@ -45,6 +45,7 @@ data class Favourite(
 
 data class Settings(
     val accentFollowsStrip: Boolean = true,
+    val hapticsEnabled: Boolean = true,
 )
 
 /**
