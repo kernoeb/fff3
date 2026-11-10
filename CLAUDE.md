@@ -44,6 +44,25 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home
 - To score Beat lock tempo on several songs: `FFF3_BENCH="a.f32=114;b.f32=92" ./gradlew :app:testDebugUnitTest --tests '*BeatBenchTest*' --rerun -i | grep BENCH`. Half and double tempo count as right. `python3 tools/micsim.py in.f32 out.f32 -30` turns a song into what the phone microphone hears 50 cm from a speaker (-45 for low volume; needs scipy). Tune on some songs and check on others you did not tune on.
 - Bluetooth write callbacks fire when Android queues the write, not when the strip receives it. The real light delay is measured with the camera: Calibrate light delay, from strip settings or the music screen. Logs: `adb logcat -s fff3-calibrate`.
 
+## macOS app
+
+A native Mac version lives in `macos/` (SwiftUI, Swift 6, SwiftPM, no Xcode project). Read [macos/README.md](macos/README.md) first.
+
+```sh
+cd macos
+./build.sh                      # -> Fff3.app, signed ad hoc, bundle id com.kernoeb.fff3.mac
+./tools/test.sh                 # protocol frames with their exact hex
+swift build -c release --product Fff3Bench && FFF3_BENCH="a.f32=114" .build/release/Fff3Bench
+```
+
+- `Sources/Fff3Core/Music` is a line-for-line port of `music/`. A change to `BeatTracker.kt`, `MusicAnalyzer.kt` or the other music files must be made in both. Check with `Fff3Bench` and `BeatBenchTest` on the same `FFF3_BENCH`: their `BENCH` and `LOCK` lines must match.
+- Use `JMath` for maths in the port, never Swift's Float functions: Kotlin computes `ln`, `exp`, `pow` and `log10` on Floats in Double, and rounds half up. Keep Kotlin's types: a Float times a Double is a Double.
+- While the Mac app runs it holds the strips' only connection. Quit it before you test on the phone.
+- The capture callback of a process tap starts with the output device's own input buffers when it has some (a USB audio interface). Read the tap's buffers, which come last.
+- `rm -rf` a signed `Fff3.app` before you replace it. Ad-hoc signing may make macOS ask for permissions again after a rebuild.
+- Dispatch closures that leave the main actor must be `@Sendable`, or Swift 6 traps at run time.
+- `FFF3_PAGE`, `FFF3_AUDIO_FILE`, `FFF3_BLE_LOG` and `FFF3_BEAT_LOG` make checks scriptable: see the README.
+
 ## Code rules
 
 - Until v1.0.0, the app data format stays at version 1: change its layout in place, with no code for older versions, then uninstall and reinstall the app (ask the user first, it wipes their strips). The release notes of a version that changes the layout must say that updating needs a reinstall. From v1.0.0, follow the versioning rule at the top of `BinaryCodec.kt`.
