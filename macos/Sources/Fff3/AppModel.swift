@@ -42,7 +42,22 @@ final class AppModel {
             onStatus: { status in Task { @MainActor [weak self] in self?.bluetooth = status } }
         )
         controller.setDevices(data.devices)
-        if let page = ProcessInfo.processInfo.environment["FFF3_PAGE"].flatMap({ Page(rawValue: $0.capitalized) }) { self.page = page }
+        let environment = ProcessInfo.processInfo.environment
+        if let page = environment["FFF3_PAGE"].flatMap({ Page(rawValue: $0.capitalized) }) { self.page = page }
+        // Test switches: a style for this run only, and music started once every strip is connected.
+        if let style = environment["FFF3_STYLE"].flatMap(MusicStyle.init(rawValue:)) { data.settings.musicStyle = style }
+        if environment["FFF3_AUTOSTART"] != nil {
+            Task { [weak self] in
+                for _ in 0..<60 {
+                    try? await Task.sleep(for: .milliseconds(500))
+                    guard let self else { return }
+                    if !self.devices.isEmpty, self.devices.allSatisfy({ self.connection[$0.id] == .connected }) {
+                        await self.startMusic()
+                        return
+                    }
+                }
+            }
+        }
     }
 
     var devices: [KnownDevice] { data.devices }

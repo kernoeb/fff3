@@ -154,7 +154,10 @@ final class MusicEngine: @unchecked Sendable {
         var loggedLocks = 0
         var outputCheckedAt: UInt64 = 0
         var noAudio = false
-        let cameraDelays = [Int?](repeating: nil, count: max(targets.count, 1))
+        var hopLoud = false
+        // Android measures each strip with the camera. The Mac has no calibration, so it uses the
+        // write-to-light time measured once with the Mac camera on the ELK-BLEDOM strips.
+        let cameraDelays = [Int?](repeating: LightTiming.macStripDelayMs, count: max(targets.count, 1))
 
         while isRunning {
             if !source.read(&hop) {
@@ -210,6 +213,16 @@ final class MusicEngine: @unchecked Sendable {
             // The link sends one colour per slot: keep it free just before a beat, so the beat goes out at once.
             let holdForBeat = settings.style == .BeatLock && renderer.untilBeat < Self.holdBeforeBeatS
             let due = renderer.beatEdge || (!holdForBeat && now - lastSentAt >= Self.sendIntervalNanos)
+            if TimingLog.enabled {
+                let peak = hop.reduce(Float(0)) { max($0, abs($1)) }
+                if peak > 0.003 && !hopLoud {
+                    TimingLog.write("analysed sample=\(TimingLog.ms(source.lastSampleNanos)) now=\(TimingLog.ms(now)) lead=\(String(format: "%.0f", lead * 1000))")
+                }
+                hopLoud = peak > 0.003 ? true : (peak < 0.001 ? false : hopLoud)
+                if renderer.beatEdge || (settings.style != .BeatLock && frame.beat) {
+                    TimingLog.write("beat now=\(TimingLog.ms(now)) sent=\(color != lastSent && due) value=\(max(color.red, color.green, color.blue))")
+                }
+            }
             if color != lastSent && due {
                 controller.send(targets, [.color(color)])
                 lastSent = color

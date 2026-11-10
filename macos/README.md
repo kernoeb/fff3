@@ -60,8 +60,26 @@ These environment variables help to check the app without clicking through it:
 - `FFF3_AUDIO_FILE=song.f32` plays a decoded song into the analyser in real time instead of capturing, so music sync can run on the strips without audio permissions
 - `FFF3_BLE_LOG=1` prints each frame as it goes to a strip, with the time in milliseconds
 - `FFF3_BEAT_LOG=1` prints one Beat lock line a second, like `adb logcat -s fff3-beat`, plus the loudness
+- `FFF3_TIMING_LOG=1` prints, on one millisecond clock, when each click was captured, analysed and turned into a beat, to measure the delay inside the app
+- `FFF3_STYLE=BeatLock` (or `Pulse`, `Spectrum`, `Energy`, `Calm`) sets the style for this run without saving it
+- `FFF3_AUTOSTART=1` starts music sync once every strip is connected
 
-Run the binary itself to see the logs: `FFF3_BLE_LOG=1 Fff3.app/Contents/MacOS/Fff3`. `tools/screenshot.sh out.png` captures the window.
+Start the app with `open -n --env FFF3_BEAT_LOG=1 --stderr log.txt Fff3.app`, so it keeps its own audio permission: a binary started from a shell captures silence. Each `open -n` starts another copy, and only one copy can hold the strips: quit the old one first. `tools/screenshot.sh out.png` captures the window.
+
+## How late the lights are
+
+Measured on 10 November 2026 with the Scarlett 2i2 as output, clicks played straight into it at known times, and the Mac camera filming the room lit by both strips at 30 fps:
+
+| Step | Time |
+|---|---|
+| Write to the strip lighting (camera, 15 flashes, with and without a 35 ms stream) | median 36 to 39 ms |
+| Click played to the capture stamp of a process tap | 37 ms after the sound (the tap stamps late) |
+| Click played to the app having the audio | 60 to 65 ms |
+| Pulse: click played to light | about 100 ms (no prediction is possible) |
+| Beat lock before the fix: click played to beat sent, then to light | +100 ms, then about +140 ms |
+| Beat lock after the fix: click played to beat sent, then to light | +13 ms, then about +55 ms |
+
+Beat lock aims at the click plus the light delay setting, +50 ms by default as on Android. Set it to 0 for lights exactly on the click. With a Bluetooth headset the output timing is not tested.
 
 ## Not ported
 
@@ -82,4 +100,8 @@ These exist on Android and are not on the Mac yet:
 
 - Ad-hoc signing changes the app's signature on each build, so macOS may ask again for Bluetooth, system audio or microphone access after a rebuild.
 - An output device with inputs, such as a USB audio interface, adds its own input buffers before the tap's in the capture callback. The code reads the tap's buffers, which come last. Reading the first buffer gave near silence with a Scarlett 2i2 as output.
-- CoreBluetooth reports a write without response as done when it is queued, not when the strip shows it, as on Android. Without the camera calibration, Beat lock may need a larger light delay on the Mac.
+- CoreBluetooth reports a write without response as done when it is queued, not when the strip shows it. The Mac has no camera calibration, so Beat lock uses the write-to-light time filmed once (`LightTiming.macStripDelayMs`, 38 ms) for every strip.
+- CoreBluetooth does not hold a deep queue of writes without response to these strips: a read sent while writing 23 frames a second comes back in 42 to 80 ms, as when idle.
+- A process tap stamps its audio when it reaches the capture device, about the aggregate device's output latency, safety offset and one buffer after the sound (34.8 ms computed, 37 ms measured). `SystemAudioSource` moves the stamps back by that much, so the output delay is only the device's own latency.
+- A process tap gets no callbacks at all while nothing plays on the output device. The capture then hands out silence at the real rate, so music sync keeps running between videos or songs instead of stopping with "The sound stopped".
+- After the app is killed, it reconnects to both strips in under a second on the next start.

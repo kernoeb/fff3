@@ -3,6 +3,10 @@ public enum LightTiming {
     /// Used for a strip with no camera value until the link has measured its own write time.
     public static let defaultLinkS = 0.060
 
+    /// Time from a CoreBluetooth write to the strip lighting, filmed with the Mac camera at 30 fps:
+    /// median 36 ms idle, 39 ms with frames every 35 ms on 2 strips (10 November 2026).
+    public static let macStripDelayMs = 38
+
     /// Used until the queue has measured its own wait: half a frame interval.
     public static let defaultQueueWaitMs = 35 / 2
 

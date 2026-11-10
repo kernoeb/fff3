@@ -27,7 +27,8 @@ struct AudioError: LocalizedError {
 /// on the way in, and remembers when the newest sample was captured.
 final class SampleFifo: @unchecked Sendable {
     private let condition = NSCondition()
-    private var buffer = [Float](repeating: 0, count: analysisRate * 2)
+    // A quarter second: if the engine ever falls this far behind, old audio is dropped rather than lag the lights.
+    private var buffer = [Float](repeating: 0, count: analysisRate / 4)
     private var start = 0
     private var count = 0
     private var newestNanos: UInt64 = 0
@@ -52,7 +53,6 @@ final class SampleFifo: @unchecked Sendable {
         let written = scratch.withUnsafeMutableBufferPointer { converter!.process(samples, length, $0.baseAddress!) }
         for i in 0..<written {
             if count == buffer.count {
-                // The engine fell behind by a second: drop the oldest audio rather than lag more.
                 start = (start + 1) % buffer.count
                 count -= 1
             }
@@ -60,21 +60,58 @@ final class SampleFifo: @unchecked Sendable {
             count += 1
         }
         newestNanos = firstSampleNanos + UInt64(Double(frames) / Double(rate) * 1e9)
+        if TimingLog.enabled { logClick(samples, frames: frames, channels: channels, rate: rate, firstSampleNanos: firstSampleNanos) }
         condition.signal()
     }
+
+    private var loudBefore = false
+
+    /// The first loud sample after quiet, with the time Core Audio gave it and when it reached us.
+    private func logClick(_ samples: UnsafePointer<Float>, frames: Int, channels: Int, rate: Int, firstSampleNanos: UInt64) {
+        for f in 0..<frames {
+            let loud = abs(samples[f * channels]) > 0.003
+            if loud && !loudBefore {
+                let at = firstSampleNanos + UInt64(Double(f) / Double(rate) * 1e9)
+                TimingLog.write("captured sample=\(TimingLog.ms(at)) arrived=\(TimingLog.ms(nowNanos())) queued=\(count)")
+            }
+            if loud { loudBefore = true; quietRun = 0 } else { quietRun += 1; if quietRun > rate / 20 { loudBefore = false } }
+        }
+    }
+
+    private var quietRun = 0
+
+    /// A process tap gets no callbacks while nothing plays on the output device. With this set,
+    /// `read` hands out silence at the real rate instead, so the beat clock still sees the gap.
+    var silenceWhenIdle = false
+    private var silenceDeadline: Date?
+    private var realLagNanos: UInt64 = 0
 
     func read(_ hop: inout [Float]) -> Bool {
         condition.lock()
         defer { condition.unlock() }
+        let hopSeconds = Double(hop.count) / Double(analysisRate)
         while count < hop.count && !closed {
-            if !condition.wait(until: Date().addingTimeInterval(2)) { return false }
+            // Silent hops follow one another at the real rate, from a clock of their own.
+            let deadline = silenceWhenIdle ? (silenceDeadline ?? Date().addingTimeInterval(hopSeconds * 2)) : Date().addingTimeInterval(2)
+            if !condition.wait(until: deadline) {
+                guard silenceWhenIdle else { return false }
+                for i in 0..<hop.count { hop[i] = i < count ? buffer[(start + i) % buffer.count] : 0 }
+                start = (start + count) % buffer.count
+                count = 0
+                // Keep the lag of real audio, so the beat clock's delays do not drift during silence.
+                handedNanos = nowNanos() - realLagNanos
+                silenceDeadline = deadline.addingTimeInterval(hopSeconds)
+                return true
+            }
         }
+        silenceDeadline = nil
         if closed { return false }
         for i in 0..<hop.count { hop[i] = buffer[(start + i) % buffer.count] }
         start = (start + hop.count) % buffer.count
         count -= hop.count
         // Samples still waiting are newer than this hop.
         handedNanos = newestNanos - UInt64(Double(count) / Double(analysisRate) * 1e9)
+        realLagNanos = nowNanos() > handedNanos ? nowNanos() - handedNanos : 0
         return true
     }
 
@@ -83,6 +120,18 @@ final class SampleFifo: @unchecked Sendable {
             closed = true
             condition.broadcast()
         }
+    }
+}
+
+/// FFF3_TIMING_LOG=1 prints, in milliseconds of the same clock, when each click was captured,
+/// analysed and sent to the strips, to measure the delay inside the app.
+enum TimingLog {
+    static let enabled = ProcessInfo.processInfo.environment["FFF3_TIMING_LOG"] != nil
+
+    static func ms(_ nanos: UInt64) -> String { String(format: "%.1f", Double(nanos) / 1e6) }
+
+    static func write(_ line: String) {
+        FileHandle.standardError.write("fff3-timing \(line)\n".data(using: .utf8)!)
     }
 }
 
@@ -95,7 +144,11 @@ func hostTimeNanos(_ hostTime: UInt64) -> UInt64 {
 /// What this Mac plays, through a Core Audio process tap on every process (macOS 14.2 and later).
 /// The first start asks for the system audio recording permission.
 final class SystemAudioSource: AudioSource, @unchecked Sendable {
-    private let fifo = SampleFifo()
+    private let fifo: SampleFifo = {
+        let fifo = SampleFifo()
+        fifo.silenceWhenIdle = true
+        return fifo
+    }()
     private let ioQueue = DispatchQueue(label: "com.kernoeb.fff3.tap", qos: .userInteractive)
     private var tapID = AudioObjectID(kAudioObjectUnknown)
     private var aggregateID = AudioObjectID(kAudioObjectUnknown)
@@ -133,6 +186,14 @@ final class SystemAudioSource: AudioSource, @unchecked Sendable {
         ]
         try check(AudioHardwareCreateAggregateDevice(aggregate as CFDictionary, &aggregateID), "create the capture device")
 
+        // The tap stamps its audio when it reaches the capture device, which is after the output
+        // device played it: about the aggregate's output latency, safety offset and one buffer (34 ms
+        // here, 37 ms measured). Moving the stamps back makes them the time the sound was played.
+        let stampLate = OutputDevice.latency(of: aggregateID, buffer: true)
+        let stampLateNanos = UInt64(max(stampLate, 0) * 1e9)
+        if TimingLog.enabled || ProcessInfo.processInfo.environment["FFF3_BEAT_LOG"] != nil {
+            FileHandle.standardError.write(String(format: "fff3-tap stamps %.1f ms after the sound\n", stampLate * 1000).data(using: .utf8)!)
+        }
         let fifo = self.fifo
         var mono = [Float](repeating: 0, count: 0)
         var logged = false
@@ -147,7 +208,7 @@ final class SystemAudioSource: AudioSource, @unchecked Sendable {
             // buffers first. The tap's buffers come last.
             let tap = Array(buffers.suffix(interleaved ? 1 : channels))
             guard let first = tap.first, let data = first.mData else { return }
-            let firstNanos = hostTimeNanos(inputTime.pointee.mHostTime)
+            let firstNanos = hostTimeNanos(inputTime.pointee.mHostTime) - stampLateNanos
             if tap.count == 1 {
                 let perBuffer = max(Int(first.mNumberChannels), 1)
                 let frames = Int(first.mDataByteSize) / MemoryLayout<Float>.size / perBuffer
@@ -291,14 +352,19 @@ enum OutputDevice {
         return transport == kAudioDeviceTransportTypeBluetooth || transport == kAudioDeviceTransportTypeBluetoothLE
     }
 
-    /// Seconds, from what Core Audio reports: device and stream latency, safety offset and one buffer.
+    /// Seconds from a sample's output time to its sound: device and stream latency and safety offset.
     static func latency() -> Double {
         guard let id = defaultID() else { return 0 }
+        return latency(of: id, buffer: false)
+    }
+
+    /// Like `latency()` for any device, with one IO buffer added when `buffer` is true.
+    static func latency(of id: AudioObjectID, buffer: Bool) -> Double {
         let scope = kAudioObjectPropertyScopeOutput
         var frames = 0
         frames += Int(uint32(id, kAudioDevicePropertyLatency, scope) ?? 0)
         frames += Int(uint32(id, kAudioDevicePropertySafetyOffset, scope) ?? 0)
-        frames += Int(uint32(id, kAudioDevicePropertyBufferFrameSize, scope) ?? 0)
+        if buffer { frames += Int(uint32(id, kAudioDevicePropertyBufferFrameSize, kAudioObjectPropertyScopeGlobal) ?? 0) }
         if let stream = firstOutputStream(id) { frames += Int(uint32(stream, kAudioStreamPropertyLatency, kAudioObjectPropertyScopeGlobal) ?? 0) }
         var rate = Float64(0)
         var size = UInt32(MemoryLayout<Float64>.size)
