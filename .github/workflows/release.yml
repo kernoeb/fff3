@@ -89,7 +89,7 @@ jobs:
 
       - name: Test and build
         env:
-          ORG_GRADLE_PROJECT_fff3.keystorePassword: ${{ secrets.FFF3_KEYSTORE_PASSWORD }}
+          FFF3_KEYSTORE_PASSWORD: ${{ secrets.FFF3_KEYSTORE_PASSWORD }}
         run: ./gradlew :app:testDebugUnitTest :app:assembleRelease $GRADLE_VERSION_ARGS $SIGNING_ARGS
 
       - name: Rename APK

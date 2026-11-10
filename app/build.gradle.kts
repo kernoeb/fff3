@@ -42,7 +42,8 @@ android {
         if (releaseKeystore != null) {
             create("release") {
                 storeFile = file(releaseKeystore)
-                storePassword = providers.gradleProperty("fff3.keystorePassword").get()
+                storePassword = providers.gradleProperty("fff3.keystorePassword")
+                    .orElse(providers.environmentVariable("FFF3_KEYSTORE_PASSWORD")).get()
                 keyAlias = providers.gradleProperty("fff3.keyAlias").orNull ?: "fff3"
                 keyPassword = storePassword
             }
