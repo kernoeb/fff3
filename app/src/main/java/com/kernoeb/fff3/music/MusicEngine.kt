@@ -219,10 +219,10 @@ class MusicEngine(
             LOG_TAG,
             String.format(
                 Locale.ROOT,
-                "t=%.0f est=%.1f conf=%.2f short=%.1f locked=%.2f shown=%d state=%s coast=%b novelty=%.1f challenge=%.1f queue=%d link=%.0f energy=%.2f%s",
+                "t=%.0f est=%.1f conf=%.2f short=%.1f locked=%.2f shown=%d state=%s coast=%b novelty=%.1f challenge=%.1f queue=%d write=%d link=%.0f energy=%.2f%s",
                 tracker.time, tracker.heardBpm, tracker.heardConfidence, tracker.shortBpm, tracker.bpm,
                 tracker.displayBpm, tracker.state, tracker.coasting, tracker.novelty,
-                tracker.challengeSeconds, queueWait.medianMillis, link * 1000, energy, if (relock != null) " relock=$relock" else "",
+                tracker.challengeSeconds, queueWait.medianMillis, linkLatency.medianMillis, link * 1000, energy, if (relock != null) " relock=$relock" else "",
             ),
         )
     }
