@@ -101,8 +101,13 @@ final class LedController: NSObject, @unchecked Sendable {
         }
     }
 
-    /// Disconnects every strip, for example when the app quits.
+    /// Disconnects every strip, for example when the app quits. Waits up to a second for connected
+    /// strips to receive what is queued, such as the colours that end music sync.
     func closeAll() {
+        let deadline = nowNanos() + 1_000_000_000
+        while nowNanos() < deadline, !queue.sync(execute: { self.links.values.allSatisfy { $0.state != .connected || $0.isIdle } }) {
+            Thread.sleep(forTimeInterval: 0.01)
+        }
         queue.sync { self.links.values.forEach { $0.close() } }
     }
 
@@ -205,9 +210,16 @@ final class StripLink: NSObject, CBPeripheralDelegate, @unchecked Sendable {
         writeQueue.enqueue(command, frames: frames)
     }
 
+    var isIdle: Bool { writeQueue.isIdle }
+
     func start() {
         guard !closed, peripheral == nil || state == .idle || isBluetoothState else { return }
         connect()
+    }
+
+    private var isConnecting: Bool {
+        if case .connecting = state { return true }
+        return false
     }
 
     private var isBluetoothState: Bool {
@@ -244,6 +256,8 @@ final class StripLink: NSObject, CBPeripheralDelegate, @unchecked Sendable {
         guard !closed, controller.bluetoothStatus == .ready else { return }
         guard let found = controller.peripheral(for: id) else {
             // This Mac has never seen the strip: it must be added again from a scan.
+            // A new attempt cancels any retry already waiting, so start() cannot add a second one.
+            attempt += 1
             failures += 1
             scheduleRetry()
             return
@@ -267,7 +281,9 @@ final class StripLink: NSObject, CBPeripheralDelegate, @unchecked Sendable {
     }
 
     func didDrop() {
-        guard !closed else { return }
+        // A connect timeout drops the link itself, then CoreBluetooth reports the cancel too: count it once.
+        // A disconnect after Bluetooth went off must keep that state.
+        guard !closed, state == .connected || isConnecting else { return }
         let wasConnected = state == .connected
         attempt += 1
         characteristic = nil

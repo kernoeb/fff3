@@ -108,9 +108,7 @@ struct MusicPage: View {
 
             block("Light delay", value: "\(lightDelay > 0 ? "+" : "")\(Int(lightDelay)) ms",
                   body: "Fine-tune if the lights come before or after the beat. Higher makes them later.") {
-                LineSlider(value: $lightDelay, range: -100...200, step: 5, accent: accent, theme: theme) {
-                    model.updateSettings { $0.musicLightDelayMs = Int(lightDelay) }
-                }
+                LineSlider(value: $lightDelay, range: -100...200, step: 5, accent: accent, theme: theme)
                 .frame(maxWidth: 420)
                 .onChange(of: lightDelay) { _, new in model.updateSettings { $0.musicLightDelayMs = Int(new) } }
             }
@@ -129,7 +127,7 @@ struct MusicPage: View {
         if settings.musicSource == .microphone && ProcessInfo.processInfo.environment["FFF3_AUDIO_FILE"] == nil {
             return "Delay: microphone \(live.captureMs) ms, lights \(live.lightsMs) ms"
         }
-        return "Delay: \(OutputDevice.name() ?? "sound output") \(live.outputMs) ms, capture \(live.captureMs) ms, lights \(live.lightsMs) ms"
+        return "Delay: \(live.outputName ?? "sound output") \(live.outputMs) ms, capture \(live.captureMs) ms, lights \(live.lightsMs) ms"
     }
 
     private var statusLine: String {

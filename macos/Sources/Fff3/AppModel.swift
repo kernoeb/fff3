@@ -143,6 +143,8 @@ final class AppModel {
                 musicError = "fff3 cannot use the microphone. Allow it in System Settings, Privacy and Security, Microphone."
                 return
             }
+            // A second click during the permission request must not start a second engine.
+            guard !musicRunning, !targetIds.isEmpty else { return }
             source = MicrophoneSource()
         } else {
             source = SystemAudioSource()
@@ -180,7 +182,7 @@ final class AppModel {
 
     /// Puts each strip back as it was before music started, like `MusicRestore.kt`.
     private func restoreAfterMusic() {
-        for id in musicTargets {
+        for id in musicTargets where data.devices.contains(where: { $0.id == id }) {
             let state = data.states[id.uuidString]
             var commands: [Command] = []
             if let effect = state?.effectId {

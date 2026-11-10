@@ -27,6 +27,7 @@ struct LiveMusic: Sendable {
     var displayBpm = 0
     var energy: Float = 0
     var outputMs = 0
+    var outputName: String?
     var captureMs = 0
     var lightsMs = 0
     var noAudio = false
@@ -49,9 +50,12 @@ final class MusicEngine: @unchecked Sendable {
     private var running = false
     private var thread: Thread?
     private let done = DispatchSemaphore(value: 0)
+    private let closeLock = NSLock()
+    private var sourceClosed = false
 
     // Engine thread only.
     private var outputDelay = 0.0
+    private var outputName: String?
     private var captureLag = -1.0
 
     private static let sendIntervalNanos: UInt64 = 30_000_000
@@ -103,7 +107,7 @@ final class MusicEngine: @unchecked Sendable {
     /// Stops and waits for the thread, so no colour is sent after this returns.
     func stop() {
         guard lock.withLock({ let was = running; running = false; return was }) || thread != nil else { return }
-        source.close()
+        closeSource()
         if thread != nil { _ = done.wait(timeout: .now() + 1) }
         thread = nil
     }
@@ -114,12 +118,21 @@ final class MusicEngine: @unchecked Sendable {
         do {
             try source.open()
         } catch {
-            source.close()
+            closeSource()
             fail(error.localizedDescription)
             return
         }
         loop()
-        source.close()
+        closeSource()
+    }
+
+    /// Both `stop` and the engine thread close the source; Core Audio objects must be freed once.
+    private func closeSource() {
+        closeLock.withLock {
+            if sourceClosed { return }
+            sourceClosed = true
+            source.close()
+        }
     }
 
     private func loop() {
@@ -159,6 +172,7 @@ final class MusicEngine: @unchecked Sendable {
                 if now - outputCheckedAt >= Self.outputCheckNanos {
                     outputCheckedAt = now
                     outputDelay = OutputDevice.latency()
+                    outputName = OutputDevice.name()
                 }
             }
 
@@ -181,7 +195,7 @@ final class MusicEngine: @unchecked Sendable {
                     bands: frame.bands, color: renderer.fullColor, level: frame.level,
                     beatPhase: renderer.beatPhase, beatInBar: renderer.beatInBar,
                     locked: tracker.state == .Locked, displayBpm: tracker.displayBpm, energy: renderer.songEnergy,
-                    outputMs: JMath.roundToInt(outputDelay * 1000), captureMs: JMath.roundToInt(captureLag * 1000),
+                    outputMs: JMath.roundToInt(outputDelay * 1000), outputName: outputName, captureMs: JMath.roundToInt(captureLag * 1000),
                     lightsMs: JMath.roundToInt(link * 1000), noAudio: noAudio
                 ))
             }

@@ -27,10 +27,10 @@ struct LightPage: View {
                             }
                         }
                         section("Brightness", value: "\(Int(brightness)) %") {
-                            LineSlider(value: $brightness, range: 1...100, step: 1, accent: accent, theme: theme)
-                                .onChange(of: brightness) { _, new in
-                                    if Int(new) != state.brightness { model.send([.brightness(Int(new))]) }
-                                }
+                            LineSlider(value: Binding(get: { brightness }, set: { new in
+                                brightness = new
+                                if Int(new) != state.brightness { model.send([.brightness(Int(new))]) }
+                            }), range: 1...100, step: 1, accent: accent, theme: theme)
                         }
                         section("White") {
                             HStack(spacing: 8) {
@@ -132,11 +132,11 @@ private struct EffectsList: View {
                 Text("Effects").font(.system(size: 11, weight: .semibold)).foregroundStyle(theme.dim)
                 Spacer()
                 Text("Speed").font(.system(size: 11)).foregroundStyle(theme.dim)
-                LineSlider(value: $speed, range: 0...100, step: 1, accent: accent, theme: theme)
+                LineSlider(value: Binding(get: { speed }, set: { new in
+                    speed = new
+                    if state.effectId != nil, Int(new) != state.speed { model.send([.speed(Int(new))]) }
+                }), range: 0...100, step: 1, accent: accent, theme: theme)
                     .frame(width: 160)
-                    .onChange(of: speed) { _, new in
-                        if state.effectId != nil, Int(new) != state.speed { model.send([.speed(Int(new))]) }
-                    }
                 Text("\(Int(speed)) %").font(.system(size: 11).monospacedDigit()).foregroundStyle(theme.dim).frame(width: 36, alignment: .trailing)
             }
             ForEach(groups, id: \.0) { group in
