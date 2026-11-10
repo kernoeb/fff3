@@ -1,6 +1,6 @@
 # fff3
 
-fff3 is a light Android app to control Bluetooth LED strips with ELK-BLEDOM and MELK controllers. It has no ads, no tracking and no internet access. It is for personal use and is not on Google Play.
+fff3 is a light app to control Bluetooth LED strips with ELK-BLEDOM and MELK controllers, on Android and on the Mac. It has no ads, no tracking and no internet access. It is for personal use and is not on Google Play or the Mac App Store.
 
 ![The home screen with 2 strips, the colour wheel, and music sync locked on the beat](docs/screenshots.png)
 
@@ -37,7 +37,7 @@ fff3 saves the last state it sent to each strip. When you open the app again, it
 
 Your strips can follow music from 2 sources:
 
-- phone audio: what your phone plays, from apps that allow audio capture
+- device audio: what your phone or Mac plays (on the phone, only from apps that allow audio capture)
 - microphone: the sound in the room, for a speaker or another device
 
 There are 5 light styles: Pulse, Spectrum, Energy, Calm and Beat lock.
@@ -57,7 +57,15 @@ fff3 corrects the delay between the sound and the light. It does this in 3 ways:
 - it measures each strip's light delay with the camera: the strip flashes and the camera sees when it changes
 - you can fine-tune the delay by hand if the lights still come early or late
 
-You can start the camera measurement from the strip settings or the music screen.
+You can start the camera measurement from the strip settings or the music screen. The Mac app uses a strip delay measured once with a camera, and reads the audio delays from macOS.
+
+## On the Mac
+
+A native Mac version lives in [macos/](macos). It controls the same strips over Bluetooth: power, colour, brightness, white presets and effects. Music sync follows what the Mac plays or what the microphone hears, with the same 5 styles. Beat lock runs the same code as on Android and gives the same results on every test song.
+
+Groups, favourites, timers, wire order and the strip's own microphone modes are only on Android for now.
+
+![The Mac app with 2 strips connected and music sync locked on the beat at 97 BPM](docs/macos.png)
 
 ## Limits
 
@@ -65,25 +73,31 @@ The strips are write-only. They cannot tell the app their power or colour. fff3 
 
 Microphone mode is less accurate than phone audio. Room noise and distance from the speaker make the beat harder to find.
 
-Each strip accepts only 1 Bluetooth connection at a time. Close other apps that control the strip before you use fff3.
+Each strip accepts only 1 Bluetooth connection at a time. Close other apps that control the strip before you use fff3. While the Mac app runs, it holds the strips: quit it before you use the phone.
 
 ## Install
+
+### Android
 
 Download `fff3-<version>.apk` from the [releases page](https://github.com/kernoeb/fff3/releases) and open it on your phone. You need Android 13 or later.
 
 To build it yourself, you need JDK 17 to 25 and the Android SDK. Then run `./gradlew :app:assembleRelease`. Your build is signed with your own debug key, so it does not install over a release APK.
 
-## On the Mac
+### Mac
 
-A native Mac version lives in [macos/](macos). It controls the same strips over Bluetooth, and makes them follow the music the Mac plays or the room hears. Beat lock gives the same results as on Android. You need macOS 14.2 or later to sync with the Mac's own sound.
+You need macOS 14 or later, and 14.2 or later to sync with the Mac's own sound. There is no download yet: build it with the Xcode command line tools.
 
-![The Mac app with 2 strips connected and music sync locked on the beat at 97 BPM](docs/macos.png)
+```sh
+cd macos
+./build.sh
+rm -rf /Applications/Fff3.app && cp -R Fff3.app /Applications/
+```
 
-To build it, run `./build.sh` in `macos/`. See [macos/README.md](macos/README.md) for what it does and what it does not do yet.
+The app is signed ad hoc, so macOS may ask again for Bluetooth and audio access after each new build. See [macos/README.md](macos/README.md) for details.
 
 ## For developers
 
-Read [CLAUDE.md](CLAUDE.md) and [ARCHITECTURE.md](ARCHITECTURE.md) before you change code. They cover decisions already made, the build, releases, signing and the tools to test Beat lock on real songs.
+Read [CLAUDE.md](CLAUDE.md) and [ARCHITECTURE.md](ARCHITECTURE.md) before you change code. For the Mac app, read [macos/README.md](macos/README.md) too. They cover decisions already made, the build, releases, signing and the tools to test Beat lock on real songs.
 
 The byte protocol was worked out from the existing app and from live tests on the strips. The full notes are kept outside this repo.
 
