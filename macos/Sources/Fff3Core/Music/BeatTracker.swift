@@ -642,7 +642,8 @@ public final class BeatTracker {
         }
         if bestLag < 0 { return 0 }
         // Before the first lock the window is short, and a wrong swap there costs the whole song.
-        if state == .Locked { bestLag = slowerForBass(bestLag, n, top) }
+        // A tempo the user set is never swapped, so its readings keep fine-tuning it.
+        if state == .Locked && guessedAt != -Double.infinity { bestLag = slowerForBass(bestLag, n, top) }
         estimateConfidence = max(correlation[bestLag] / energy, 0)
         var rival: Float = 0
         for lag in minLag...lastLag where !relatedLag(lag, bestLag) { rival = max(rival, correlation[lag]) }
@@ -687,7 +688,8 @@ public final class BeatTracker {
         if slow > maxLag || slow + 2 > top || !bassSaysSlower(Float(lag), n) { return lag }
         var best = slow
         for candidate in (slow - 2)...(slow + 2) where correlation[candidate] > correlation[best] { best = candidate }
-        return best
+        // A weak slower tempo would turn the reading into none, and the lock would stop fine-tuning.
+        return correlation[best] / correlation[0] < C.patientConfidence ? lag : best
     }
 
     /// True when the bass hits of the newest `n` frames repeat every 1.5 periods of `lag`, and not
@@ -708,9 +710,16 @@ public final class BeatTracker {
         }
         let energy = bassCorrelation(0, n)
         if energy <= 0 { return false }
+        // The lag is in whole frames, so the peaks at 2 and 4 lags can sit 1 and 2 frames away.
         let atSlow = bassCorrelation(1.5 * lag, n) / energy
-        let atFast = max(bassCorrelation(lag, n), bassCorrelation(2 * lag, n), bassCorrelation(4 * lag, n)) / energy
+        let atFast = max(bassCorrelation(lag, n), bassPeakNear(2 * lag, 1, n), bassPeakNear(4 * lag, 2, n)) / energy
         return atSlow >= C.bassSlowMin && atSlow >= C.bassSlowRatio * atFast
+    }
+
+    private func bassPeakNear(_ centre: Float, _ radius: Int, _ n: Int) -> Float {
+        var best = bassCorrelation(centre, n)
+        for offset in -radius...radius { best = max(best, bassCorrelation(centre + Float(offset), n)) }
+        return best
     }
 
     private func bassCorrelation(_ lag: Float, _ n: Int) -> Float {

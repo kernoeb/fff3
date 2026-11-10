@@ -669,7 +669,8 @@ class BeatTracker(
         }
         if (bestLag < 0) return 0f
         // Before the first lock the window is short, and a wrong swap there costs the whole song.
-        if (state == BeatLockState.Locked) bestLag = slowerForBass(bestLag, n, top)
+        // A tempo the user set is never swapped, so its readings keep fine-tuning it.
+        if (state == BeatLockState.Locked && guessedAt != Double.NEGATIVE_INFINITY) bestLag = slowerForBass(bestLag, n, top)
         estimateConfidence = (correlation[bestLag] / energy).coerceAtLeast(0f)
         var rival = 0f
         for (lag in minLag..minOf(maxLag, top - 1)) {
@@ -718,7 +719,8 @@ class BeatTracker(
         if (slow > maxLag || slow + 2 > top || !bassSaysSlower(lag.toFloat(), n)) return lag
         var best = slow
         for (candidate in slow - 2..slow + 2) if (correlation[candidate] > correlation[best]) best = candidate
-        return best
+        // A weak slower tempo would turn the reading into none, and the lock would stop fine-tuning.
+        return if (correlation[best] / correlation[0] < PATIENT_CONFIDENCE) lag else best
     }
 
     /**
@@ -740,9 +742,16 @@ class BeatTracker(
         }
         val energy = bassCorrelation(0f, n)
         if (energy <= 0f) return false
+        // The lag is in whole frames, so the peaks at 2 and 4 lags can sit 1 and 2 frames away.
         val atSlow = bassCorrelation(1.5f * lag, n) / energy
-        val atFast = maxOf(bassCorrelation(lag, n), bassCorrelation(2f * lag, n), bassCorrelation(4f * lag, n)) / energy
+        val atFast = maxOf(bassCorrelation(lag, n), bassPeakNear(2f * lag, 1, n), bassPeakNear(4f * lag, 2, n)) / energy
         return atSlow >= BASS_SLOW_MIN && atSlow >= BASS_SLOW_RATIO * atFast
+    }
+
+    private fun bassPeakNear(centre: Float, radius: Int, n: Int): Float {
+        var best = bassCorrelation(centre, n)
+        for (offset in -radius..radius) best = maxOf(best, bassCorrelation(centre + offset, n))
+        return best
     }
 
     private fun bassCorrelation(lag: Float, n: Int): Float {

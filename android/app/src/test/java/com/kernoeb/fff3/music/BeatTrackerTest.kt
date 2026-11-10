@@ -435,6 +435,43 @@ class BeatTrackerTest {
     }
 
     @Test
+    fun tappedTempoOverTripletHatsKeepsFineTuning() {
+        // The same music, tapped at 126.5 on the hats: the readings must still pull it towards 125.
+        val tracker = BeatTracker(93.75f)
+        val random = Random(5)
+        var bass = 0f
+        for (frame in 0 until 60 * 94) {
+            var strength = random.nextFloat() * 0.3f
+            if (frame % 45 == 0) strength += 1.5f
+            val kick = frame % 67.5 < 1.0
+            if (kick) strength += 0.8f
+            bass = if (kick) 0.05f else bass * 0.9f
+            tracker.process(strength, 0.1f, bass + random.nextFloat() * 1e-4f)
+            if (frame == 5 * 94) for (tap in 0 until 6) tracker.tap(tracker.time + tap * 60.0 / 126.5)
+        }
+        assertEquals(125f, tracker.bpm, 0.75f)
+        // Only the lock before the taps: the kick never replaces a tempo the user set.
+        assertEquals(1, tracker.lockCount)
+    }
+
+    @Test
+    fun bassAloneDoesNotSilenceTheReadings() {
+        // The kick is in the bass but not in the onsets: the window never hears the slower tempo.
+        val tracker = BeatTracker(93.75f)
+        val random = Random(5)
+        var bass = 0f
+        for (frame in 0 until 60 * 94) {
+            var strength = random.nextFloat() * 0.3f
+            if (frame % 45 == 0) strength += 1.5f
+            val kick = frame % 67.5 < 1.0
+            bass = if (kick) 0.05f else bass * 0.9f
+            tracker.process(strength, 0.1f, bass + random.nextFloat() * 1e-4f)
+        }
+        assertEquals(125f, tracker.bpm, 1f)
+        assertEquals(125f, tracker.heardBpm, 1f)
+    }
+
+    @Test
     fun heardLockKeepsItsTempoWhenAnotherTempoTakesOver() {
         // 40 s of a steady 120 BPM beat proves the lock. A long section that only hears 160 BPM
         // must not move it: within a song, 4:3 is the same music counted another way.
