@@ -1,56 +1,99 @@
 # fff3
 
-fff3 is a light, ad-free Android app to control Bluetooth LE RGB LED strips (ELK-BLEDOM and MELK controllers). It replaces the usual store app for these strips, for personal use.
+fff3 is a light Android app to control Bluetooth LED strips with ELK-BLEDOM and MELK controllers. It has no ads, no tracking and no internet access. It is for personal use and is not on Google Play.
 
-The name is the Bluetooth characteristic every command is written to: `0000fff3-…`.
+The name comes from the Bluetooth characteristic that every command is written to: `0000fff3-…`.
 
-## What it does
+## Why it exists
 
-- pair a strip once with the system pairing sheet, then reconnect on every launch
-- change colour live while you drag the colour wheel, with no "Set" button
-- control several strips at once with groups
-- power, brightness, white presets, built-in effects with speed, and the strip's own microphone modes
-- favourites you apply in one tap
-- per-strip settings: name, wire order with a live test, on and off timers, automatic clock sync
-- Quick Settings tile, home-screen widget and app shortcuts
-- music sync from phone audio or the microphone, with 5 light styles, including Beat lock, which follows the song's tempo
-
-## Compared with the usual store app
+The usual store app for these strips is large, slow and full of ads. It sends a command only after you tap "Set", and it connects again for every command. fff3 keeps the strip connected and changes the colour while you drag.
 
 | | Usual store app | fff3 |
 |---|---|---|
 | Release APK | 9.4 MB | about 3 MB |
-| Permissions | 16 | Bluetooth, microphone and notifications only |
-| Ads and tracking | AdMob, Firebase Analytics | none, no internet permission |
+| Permissions | 16 | Bluetooth, microphone, camera and notifications only |
+| Ads and analytics | yes | none, no internet permission |
 | Commands | 1 every 2 seconds, after a "Set" tap | up to 28 a second, live |
 | Connection | scan and connect for each command | paired once, kept open |
 
+## Control your strips
+
+You can:
+
+- pair a strip once with the system pairing sheet, then reconnect on every launch
+- change colour live while you drag the colour wheel
+- control several strips at once with groups
+- set power, brightness, white presets and built-in effects with their speed
+- use the strip's own microphone modes
+- save favourites and apply them in one tap
+- set per-strip options: name, wire order with a live test, on and off timers, and automatic clock sync
+- use the Quick Settings tile, the home-screen widget and app shortcuts
+
+fff3 saves the last state it sent to each strip. When you open the app again, it shows that state.
+
+## Music sync
+
+Your strips can follow music from 2 sources:
+
+- phone audio: what your phone plays, such as Spotify or YouTube
+- microphone: the sound in the room, for a speaker or another device
+
+There are 5 light styles: Pulse, Spectrum, Energy, Calm and Beat lock.
+
+Beat lock finds the tempo and keeps the lights on the beat, even in quiet parts and breaks. You can:
+
+- choose the colours: a new colour each bar, one colour per tempo, or the strip's own colour
+- tap the beat to set the tempo, and use ×2 or ÷2 if the lights go twice too fast or too slow
+
+Brightness follows the part of the song. A calm verse is dimmer and a chorus is brighter, whatever the volume.
+
+## Keep lights in time with the sound
+
+fff3 corrects the delay between the sound and the light. It does this in 3 ways:
+
+- it measures the phone's audio output delay with the microphone
+- it measures each strip's light delay with the camera: the strip flashes and the camera sees when it changes
+- you can fine-tune the delay by hand if the lights still come early or late
+
+You can start the camera measurement from the strip settings or the music screen.
+
 ## Limits
 
-The strips cannot report their state. fff3 only knows what it sent, so after you use the remote or another app it shows the state as unknown. Power uses separate On and Off buttons, so each tap does what it says.
+The strips are write-only. They cannot tell the app their power or colour. fff3 only knows what it sent, so the state shows as unknown after you use the remote or another app. For this reason, power has separate On and Off buttons, so each tap does what it says.
+
+Microphone mode is less accurate than phone audio. Room noise and distance from the speaker make the beat harder to find.
+
+Each strip accepts only 1 Bluetooth connection at a time. Close other apps that control the strip before you use fff3.
 
 ## Build and install
 
-You need JDK 17 to 25 and the Android SDK. A phone running Android 13 or later must be connected with USB debugging on.
+You need:
 
-```sh
-export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home
-./gradlew :app:testDebugUnitTest      # unit tests
-./gradlew :app:installDebug           # debug build on the phone
-./gradlew :app:assembleRelease        # release APK, signed with the debug key
-adb install -r app/build/outputs/apk/release/app-release.apk
-```
+- JDK 17 to 25
+- the Android SDK
+- a phone with Android 13 or later, connected with USB debugging on
 
-## Project layout
+To build and install the release version:
 
-- `app/src/main/java/com/kernoeb/fff3/`:
-  - `protocol/`: commands and byte encoders, no Android code
-  - `ble/`: pairing, links to strips and the write queue
-  - `data/`: DataStore files
-  - `music/`: audio capture, beat detection and Beat lock
-  - `system/`: tile, widget, shortcuts and the music service
-  - `ui/`: Compose screens
-- `baselineprofile/`: startup profile generator
-- [ARCHITECTURE.md](ARCHITECTURE.md): main interfaces and where new work plugs in
+1. Set Java: `export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home`
+2. Run the unit tests: `./gradlew :app:testDebugUnitTest`
+3. Build and install: `./gradlew :app:assembleRelease && adb install -r app/build/outputs/apk/release/app-release.apk`
+
+The release build is signed with the debug key. It installs over a debug build and keeps your data.
+
+## For developers
+
+Read these before you change code:
+
+- [CLAUDE.md](CLAUDE.md): decisions already made, build checks and how to test on real strips
+- [ARCHITECTURE.md](ARCHITECTURE.md): packages, main interfaces and where new work plugs in
+
+You can test Beat lock on real songs without the phone:
+
+- `SongReplayTest` replays a song and prints tempo, energy and brightness each second
+- `BeatBenchTest` scores the tempo found on several songs
+- `tools/micsim.py` turns a song into what the phone microphone hears from a speaker
+
+CLAUDE.md gives the exact commands.
 
 The byte protocol was worked out from the existing app and from live tests on the strips. The full notes are kept outside this repo.
