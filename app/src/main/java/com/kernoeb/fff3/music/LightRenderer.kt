@@ -42,6 +42,10 @@ class LightRenderer(
     private var accent = 0f
     private var beatHue = baseHue
     private var tempoHue = Float.NaN
+    private val energy = SongEnergy()
+
+    /** 0..1, how intense this part of the song is compared with the last 40 seconds. */
+    val songEnergy: Float get() = energy.value
 
     /** The colour of the last [render], for the visualiser. */
     var color: Rgb = Rgb.Black
@@ -85,6 +89,7 @@ class LightRenderer(
         beatEdge = false
         beatPhase = -1f
         untilBeat = Double.POSITIVE_INFINITY
+        energy.update(frame.rms, frame.onset, dt)
         val beatPeriod = if (frame.bpm > 0f) 60f / frame.bpm else 0.5f
         if (frame.beat) flash = 1f else flash *= decay(dt, beatPeriod * 0.3f)
 
@@ -121,7 +126,6 @@ class LightRenderer(
             }
             MusicStyle.BeatLock -> {
                 val locked = clock != null && clock.state == BeatLockState.Locked
-                slowLevel = follow(slowLevel, frame.level, dt, attack = 0.15f, release = 1.5f)
                 lockMix += ((if (locked) 1f else 0f) - lockMix) * (1f - decay(dt, LOCK_FADE))
                 var beatValue = 0f
                 var beatSaturation = 1f
@@ -143,9 +147,12 @@ class LightRenderer(
                     val phase = if (whole < lastBeat) 0.0 else beats - whole
                     beatPhase = phase.toFloat()
                     untilBeat = (lastBeat + 1 - beats) * clock.period
-                    val pulse = exp(-phase / DECAY_BEATS).toFloat()
-                    beatValue = (BEAT_FLOOR + (accent - BEAT_FLOOR) * pulse) * (QUIET_SHARE + (1f - QUIET_SHARE) * slowLevel)
-                    if (beatInBar == 0) beatSaturation = 1f - DOWNBEAT_WHITE * pulse
+                    // Calm parts glow longer and dimmer; a chorus or a drop gets short, full flashes.
+                    val intensity = energy.value
+                    val decayBeats = CALM_DECAY_BEATS + (DECAY_BEATS - CALM_DECAY_BEATS) * intensity
+                    val pulse = exp(-phase / decayBeats).toFloat()
+                    beatValue = (BEAT_FLOOR + (accent - BEAT_FLOOR) * pulse) * (CALM_PEAK + (1f - CALM_PEAK) * intensity)
+                    if (beatInBar == 0) beatSaturation = 1f - DOWNBEAT_WHITE * intensity * pulse
                     flash = accent * pulse * lockMix
                 } else {
                     beatHue += FALLBACK_DRIFT * dt
@@ -228,7 +235,8 @@ class LightRenderer(
         const val OFFBEAT_ACCENT = 0.62f
         const val DECAY_BEATS = 0.3
         const val BEAT_FLOOR = 0.12f
-        const val QUIET_SHARE = 0.65f
+        const val CALM_PEAK = 0.4f
+        const val CALM_DECAY_BEATS = 0.55
         const val DOWNBEAT_WHITE = 0.3f
         const val LOCK_FADE = 0.4f
         const val FALLBACK_DRIFT = 5f

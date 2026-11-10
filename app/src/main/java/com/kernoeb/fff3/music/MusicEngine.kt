@@ -195,7 +195,7 @@ class MusicEngine(
                     loggedAt = now
                     val relocked = tracker.lockCount != loggedLocks
                     loggedLocks = tracker.lockCount
-                    logBeat(tracker, if (relocked) tracker.lastReason else null, link)
+                    logBeat(tracker, if (relocked) tracker.lastReason else null, link, renderer.songEnergy)
                 }
 
                 // The link sends one colour per slot: keep it free just before a beat, so the beat goes out at once.
@@ -214,15 +214,15 @@ class MusicEngine(
     }
 
     /** One line a second, to read with `adb logcat -s fff3-beat` after playing real music. */
-    private fun logBeat(tracker: BeatTracker, relock: RelockReason?, link: Double) {
+    private fun logBeat(tracker: BeatTracker, relock: RelockReason?, link: Double, energy: Float) {
         Log.d(
             LOG_TAG,
             String.format(
                 Locale.ROOT,
-                "t=%.0f est=%.1f conf=%.2f short=%.1f locked=%.2f shown=%d state=%s coast=%b novelty=%.1f challenge=%.1f queue=%d link=%.0f%s",
+                "t=%.0f est=%.1f conf=%.2f short=%.1f locked=%.2f shown=%d state=%s coast=%b novelty=%.1f challenge=%.1f queue=%d link=%.0f energy=%.2f%s",
                 tracker.time, tracker.heardBpm, tracker.heardConfidence, tracker.shortBpm, tracker.bpm,
                 tracker.displayBpm, tracker.state, tracker.coasting, tracker.novelty,
-                tracker.challengeSeconds, queueWait.medianMillis, link * 1000, if (relock != null) " relock=$relock" else "",
+                tracker.challengeSeconds, queueWait.medianMillis, link * 1000, energy, if (relock != null) " relock=$relock" else "",
             ),
         )
     }
