@@ -1,4 +1,4 @@
-name: Release APK
+name: Release
 
 on:
   push:
@@ -104,8 +104,58 @@ jobs:
           path: ${{ steps.version.outputs.apk }}
           if-no-files-found: error
 
+  macos:
+    runs-on: macos-26
+    timeout-minutes: 30
+    outputs:
+      zip: ${{ steps.version.outputs.zip }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set version from tag
+        id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          REF_NAME: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          case "$EVENT_NAME" in
+            release) tag="$RELEASE_TAG" ;;
+            push) tag="$REF_NAME" ;;
+            *) tag="" ;;
+          esac
+          if [ -n "$tag" ]; then
+            echo "FFF3_VERSION=${tag#v}" >> "$GITHUB_ENV"
+            zip="fff3-$tag-macos.zip"
+          else
+            zip="fff3-${SHA:0:7}-macos.zip"
+          fi
+          echo "zip=$zip" >> "$GITHUB_OUTPUT"
+
+      - name: Test and build
+        working-directory: macos
+        run: |
+          swift --version
+          ./tools/test.sh
+          ./build.sh
+
+      # ditto keeps the bundle's signature and attributes, which a plain zip loses.
+      - name: Zip the app
+        env:
+          ZIP: ${{ steps.version.outputs.zip }}
+        run: ditto -c -k --keepParent macos/Fff3.app "$ZIP"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.version.outputs.zip }}
+          path: ${{ steps.version.outputs.zip }}
+          if-no-files-found: error
+
   publish:
-    needs: build
+    needs: [build, macos]
     if: needs.build.outputs.tag != ''
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -116,14 +166,19 @@ jobs:
         with:
           name: ${{ needs.build.outputs.apk }}
 
-      - name: Attach APK to the release
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ needs.macos.outputs.zip }}
+
+      - name: Attach the APK and the Mac app to the release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           TAG: ${{ needs.build.outputs.tag }}
           APK: ${{ needs.build.outputs.apk }}
+          ZIP: ${{ needs.macos.outputs.zip }}
         run: |
           if ! gh release view "$TAG" > /dev/null 2>&1; then
             gh release create "$TAG" --verify-tag --generate-notes --title "$TAG"
           fi
-          gh release upload "$TAG" "$APK" --clobber
+          gh release upload "$TAG" "$APK" "$ZIP" --clobber

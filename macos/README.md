@@ -6,7 +6,15 @@ The Mac app of [fff3](../README.md): control your ELK-BLEDOM and MELK strips ove
 
 ## Install
 
-There is no download yet. Build it with the Xcode command line tools, from the repo root:
+Download `fff3-<version>-macos.zip` from the [releases page](https://github.com/kernoeb/fff3/releases), unzip it and move `Fff3.app` to Applications. It runs on Apple silicon Macs.
+
+The app is not notarised by Apple, so macOS blocks it the first time. To open it:
+
+1. Open it once and close the warning.
+2. Go to System Settings, then Privacy and Security.
+3. Next to the message about fff3, select Open Anyway.
+
+To build it yourself, use the Xcode command line tools, from the repo root:
 
 ```sh
 cd macos

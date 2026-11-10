@@ -41,7 +41,7 @@ Beat lock finds the tempo and keeps the lights on the beat, even in quiet parts 
 | Timers, wire order, the strip's microphone modes | yes | not yet |
 | Tile, widget and shortcuts | yes | no |
 | Light delay | measured per strip with the camera | measured once, the same for every strip |
-| Install | APK from the releases page | build from source |
+| Install | APK from the releases page | zip from the releases page, Apple silicon |
 
 Each strip accepts only 1 Bluetooth connection at a time. While one app holds a strip, the other cannot reach it.
 
