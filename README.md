@@ -65,56 +65,14 @@ Microphone mode is less accurate than phone audio. Room noise and distance from 
 
 Each strip accepts only 1 Bluetooth connection at a time. Close other apps that control the strip before you use fff3.
 
-## Build and install
+## Install
 
-You need:
+Download `fff3-<version>.apk` from the [releases page](https://github.com/kernoeb/fff3/releases) and open it on your phone. You need Android 13 or later.
 
-- JDK 17 to 25
-- the Android SDK
-- a phone with Android 13 or later, connected with USB debugging on
-
-To build and install the release version:
-
-1. Set Java: `export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home`
-2. Run the unit tests: `./gradlew :app:testDebugUnitTest`
-3. Build and install: `./gradlew :app:assembleRelease && adb install -r app/build/outputs/apk/release/app-release.apk`
-
-Release builds are signed with the fff3 key. Gradle finds it through 3 properties in `~/.gradle/gradle.properties`, outside the repo:
-
-- `fff3.keystore`: the path to the keystore
-- `fff3.keystorePassword`: its password
-- `fff3.keyAlias`: `fff3`
-
-Without these properties, release builds use the debug key. Android then refuses them as an update to an installed fff3.
-
-Keep a backup of the keystore and its password. If you lose them, you cannot update the app: you must uninstall it and lose its data.
-
-## Releases
-
-GitHub builds the release APK for you when you push a version tag. To cut a release:
-
-1. Tag the commit: `git tag v0.2.0`
-2. Push the tag: `git push origin v0.2.0`
-
-The workflow runs the unit tests, then builds the APK. The tag sets the version name, without the `v`. It attaches the APK to the GitHub release as `fff3-v0.2.0.apk`, and creates the release if it does not exist. You can also publish a release on GitHub, and the APK is added to it.
-
-The workflow signs the APK with the fff3 key, from 2 repository secrets: `FFF3_KEYSTORE_BASE64` and `FFF3_KEYSTORE_PASSWORD`. So a GitHub APK installs over a local build and keeps your data.
-
-Without these secrets, the workflow still builds the APK, but with a new key, and it will not install over your app. The run summary warns you when this happens.
+To build it yourself, you need JDK 17 to 25 and the Android SDK. Then run `./gradlew :app:assembleRelease`. Your build is signed with your own debug key, so it does not install over a release APK.
 
 ## For developers
 
-Read these before you change code:
-
-- [CLAUDE.md](CLAUDE.md): decisions already made, build checks and how to test on real strips
-- [ARCHITECTURE.md](ARCHITECTURE.md): packages, main interfaces and where new work plugs in
-
-You can test Beat lock on real songs without the phone:
-
-- `SongReplayTest` replays a song and prints tempo, energy and brightness each second
-- `BeatBenchTest` scores the tempo found on several songs
-- `tools/micsim.py` turns a song into what the phone microphone hears from a speaker
-
-CLAUDE.md gives the exact commands.
+Read [CLAUDE.md](CLAUDE.md) and [ARCHITECTURE.md](ARCHITECTURE.md) before you change code. They cover decisions already made, the build, releases, signing and the tools to test Beat lock on real songs.
 
 The byte protocol was worked out from the existing app and from live tests on the strips. The full notes are kept outside this repo.

@@ -18,14 +18,22 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home
 ./gradlew :app:testDebugUnitTest :app:assembleRelease && adb install -r app/build/outputs/apk/release/app-release.apk
 ```
 
-- The user runs the release build. To install it: `./gradlew :app:assembleRelease && adb install -r app/build/outputs/apk/release/app-release.apk`. It is signed with the fff3 key (`fff3.keystore`, `fff3.keystorePassword`, `fff3.keyAlias` in `~/.gradle/gradle.properties`; keystore in `~/.config/fff3/`). Debug builds use the debug key, so they do not install over it: do not use `installDebug` on the user's phone. `run-as` does not work on it.
-- A `v*` tag push runs `.github/workflows/release.yml`: it tests, builds and attaches `fff3-<tag>.apk` to the GitHub release. `-PversionName` overrides the version name. It signs with the `FFF3_KEYSTORE_BASE64` and `FFF3_KEYSTORE_PASSWORD` secrets. Never push a tag unless asked.
+- The user runs the release build, signed with the fff3 key (see below). Debug builds use the debug key, so they do not install over it: do not use `installDebug` on the user's phone. `run-as` does not work on the release build.
 - Release lint (`lintVital`) is off because lint 9.5 crashes on some Compose files. Run `./gradlew :app:lintDebug` by hand if you want lint.
 - Check Gradle's real exit code before committing. A pipe such as `./gradlew … | tail` hides failures, and a broken merge was committed once this way.
 - The default JDK on this Mac is too new for Gradle. Always set `JAVA_HOME` as above.
 - The phone is connected over adb. Installing release builds with `adb install -r` is allowed at any time. Never uninstall the app: that wipes the user's strips and calibrations. Check UI changes with a screenshot: `adb exec-out screencap -p > <scratchpad>/name.png`.
 - Never tap Forget, Delete or the system audio capture consent on the user's behalf.
 - Logs: `adb logcat --pid="$(adb shell pidof com.kernoeb.fff3)"`, and `adb logcat -s fff3-beat` for Beat lock.
+
+## Releases and signing
+
+- Release builds are signed with the fff3 key. Gradle reads `fff3.keystore`, `fff3.keystorePassword` and `fff3.keyAlias` from `~/.gradle/gradle.properties`; the keystore is `~/.config/fff3/fff3-release.jks`. The password can also come from the `FFF3_KEYSTORE_PASSWORD` environment variable. Without the keystore property, release builds fall back to the debug key with a warning.
+- Losing the keystore or its password means the app can never be updated again without uninstalling it, which wipes the user's strips and calibrations. The user keeps a backup.
+- To cut a release, only when the user asks: `git tag v0.2.0 && git push origin v0.2.0`. A `v*` tag or a published GitHub release runs `.github/workflows/release.yml`: it runs the unit tests, builds with `-PversionName` from the tag (without the `v`) and attaches `fff3-<tag>.apk` to the release, creating it if needed. `workflow_dispatch` builds an artifact without publishing, for testing.
+- The workflow signs with the `FFF3_KEYSTORE_BASE64` and `FFF3_KEYSTORE_PASSWORD` repository secrets. Without them it signs with a new debug key and warns in the run summary; that APK does not install over the user's app.
+- `versionCode` stays 1 on purpose: a higher one from CI would block local `adb install -r` builds. `-PversionCode` exists if needed.
+- Actions in the workflow are pinned to the full commit SHA of their latest release, with the version in a comment. Keep them on the latest release when you update them.
 
 ## Testing on the real strips
 
