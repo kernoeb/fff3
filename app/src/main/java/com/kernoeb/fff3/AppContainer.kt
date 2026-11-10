@@ -79,6 +79,11 @@ class AppContainer(context: Context) {
                     music.updateSettings { it.copy(lightDelayMs = delay) }
                 }
             }
+            appScope.launch {
+                repository.settings.map { it.beatColors }.distinctUntilChanged().collect { colors ->
+                    music.updateSettings { it.copy(beatColors = colors) }
+                }
+            }
         }
     }
 }

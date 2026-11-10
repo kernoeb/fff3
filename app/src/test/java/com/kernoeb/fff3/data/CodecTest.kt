@@ -50,6 +50,7 @@ class CodecTest {
                 musicLightDelayMs = -45,
                 outputDelaysMs = mapOf(AudioOutput.Bluetooth to 212, AudioOutput.Speaker to 18),
                 lightDelaysMs = mapOf("BE:FF:20:00:00:01" to 42, "BE:FF:20:00:00:02" to 97),
+                beatColors = BeatColors.Tempo,
             ),
         )
         val bytes = ByteArrayOutputStream().also { AppDataCodec.write(data, it) }.toByteArray()
@@ -109,6 +110,7 @@ class CodecTest {
         assertEquals(50, oldSettings(version = 5, lightDelayMs = null).musicLightDelayMs)
         assertEquals(0, oldSettings(version = 5, lightDelayMs = 0).musicLightDelayMs)
         assertEquals(mapOf("A" to 16), oldSettings(version = 5, lightDelayMs = null).lightDelaysMs)
+        assertEquals(BeatColors.Bars, oldSettings(version = 5, lightDelayMs = null).beatColors)
     }
 
     /** A file as versions 4 and 5 wrote it: version 5 stored the fine-tune as a nullable int. */

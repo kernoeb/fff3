@@ -53,7 +53,18 @@ data class Settings(
     val outputDelaysMs: Map<AudioOutput, Int> = emptyMap(),
     /** Camera-measured time from a colour write to the strip showing it, by strip address. */
     val lightDelaysMs: Map<String, Int> = emptyMap(),
+    val beatColors: BeatColors = BeatColors.Bars,
 )
+
+/** Where Beat lock takes its colour from. */
+enum class BeatColors {
+    /** A new colour each bar of 4 beats. */
+    Bars,
+    /** One colour per tempo, so a song keeps its colour until the tempo changes. */
+    Tempo,
+    /** The strip's colour from before music started. */
+    Strip,
+}
 
 /** What music sync listens to: what the phone plays, or the room through the microphone. */
 enum class MusicSource { PhoneAudio, Microphone }

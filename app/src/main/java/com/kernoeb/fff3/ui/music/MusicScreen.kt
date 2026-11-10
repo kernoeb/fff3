@@ -80,6 +80,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kernoeb.fff3.R
 import com.kernoeb.fff3.ble.ControlTarget
 import com.kernoeb.fff3.data.AudioOutput
+import com.kernoeb.fff3.data.BeatColors
 import com.kernoeb.fff3.data.MusicSource
 import com.kernoeb.fff3.music.LatencyStatus
 import com.kernoeb.fff3.music.LiveMusic
@@ -331,6 +332,7 @@ fun MusicScreen(initialTarget: ControlTarget?, onBack: () -> Unit, onCalibrateLi
                     onTap = viewModel::tap,
                     onScaleTempo = viewModel::scaleTempo,
                     onRecalibrate = viewModel::recalibrate,
+                    onBeatColors = viewModel::selectBeatColors,
                     onLightDelay = viewModel::setLightDelay,
                     onLightDelayDone = viewModel::saveLightDelay,
                     onMeasureLight = { onCalibrateLight(state.calibrateAddress) },
@@ -406,6 +408,7 @@ private fun BeatLockPanel(
     onTap: (Long) -> Unit,
     onScaleTempo: (Double) -> Unit,
     onRecalibrate: () -> Unit,
+    onBeatColors: (BeatColors) -> Unit,
     onLightDelay: (Int) -> Unit,
     onLightDelayDone: () -> Unit,
     onMeasureLight: () -> Unit,
@@ -436,6 +439,24 @@ private fun BeatLockPanel(
             }
             Text(
                 stringResource(R.string.music_beat_tap_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.onSurfaceVariant,
+            )
+            Text(stringResource(R.string.music_beat_colors), style = MaterialTheme.typography.titleSmall)
+            val choices = BeatColors.entries
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                choices.forEachIndexed { index, choice ->
+                    SegmentedButton(
+                        selected = choice == state.settings.beatColors,
+                        onClick = { onBeatColors(choice) },
+                        shape = SegmentedButtonDefaults.itemShape(index, choices.size),
+                        icon = {},
+                        label = { Text(stringResource(choice.labelRes()), maxLines = 1) },
+                    )
+                }
+            }
+            Text(
+                stringResource(state.settings.beatColors.bodyRes()),
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.onSurfaceVariant,
             )
@@ -671,4 +692,16 @@ private fun Context.openAppSettings() {
         Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
     )
+}
+
+private fun BeatColors.labelRes() = when (this) {
+    BeatColors.Bars -> R.string.music_beat_colors_bars
+    BeatColors.Tempo -> R.string.music_beat_colors_tempo
+    BeatColors.Strip -> R.string.music_beat_colors_strip
+}
+
+private fun BeatColors.bodyRes() = when (this) {
+    BeatColors.Bars -> R.string.music_beat_colors_bars_body
+    BeatColors.Tempo -> R.string.music_beat_colors_tempo_body
+    BeatColors.Strip -> R.string.music_beat_colors_strip_body
 }

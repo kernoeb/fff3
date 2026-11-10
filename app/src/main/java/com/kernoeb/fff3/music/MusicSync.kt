@@ -1,6 +1,7 @@
 package com.kernoeb.fff3.music
 
 import com.kernoeb.fff3.ble.ControlTarget
+import com.kernoeb.fff3.data.BeatColors
 import com.kernoeb.fff3.data.MusicSource
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,6 +19,7 @@ data class MusicSettings(
     val style: MusicStyle = MusicStyle.Pulse,
     val sensitivity: Float = 0.5f,
     val lightDelayMs: Int = 50,
+    val beatColors: BeatColors = BeatColors.Bars,
 )
 
 /** Beat lock state for the screen. [bpm] is 0 while listening. */

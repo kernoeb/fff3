@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kernoeb.fff3.ble.ControlTarget
+import com.kernoeb.fff3.data.BeatColors
 import com.kernoeb.fff3.data.DeviceStateStore
 import com.kernoeb.fff3.data.LedRepository
 import com.kernoeb.fff3.data.MusicSource
@@ -135,6 +136,11 @@ class MusicViewModel(
 
     /** Applies at once while the slider moves; [saveLightDelay] keeps it. */
     fun setLightDelay(millis: Int) = music.updateSettings { it.copy(lightDelayMs = millis) }
+
+    fun selectBeatColors(colors: BeatColors) {
+        music.updateSettings { it.copy(beatColors = colors) }
+        viewModelScope.launch { repository.updateSettings { it.copy(beatColors = colors) } }
+    }
 
     fun saveLightDelay() {
         val millis = music.settings.value.lightDelayMs

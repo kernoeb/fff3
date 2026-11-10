@@ -1,8 +1,11 @@
 package com.kernoeb.fff3.music
 
+import com.kernoeb.fff3.data.BeatColors
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.random.Random
 
@@ -99,6 +102,49 @@ class BeatLockRendererTest {
         edges.zipWithNext { a, b -> assertEquals(0.5, b - a, dt * 1.5) }
         assertEquals(12.0, edges.first(), dt * 1.5)
         assertTrue("peaks $peaks", peaks.getValue(0) > peaks.getValue(1) + 40)
+    }
+
+    /** Hues in degrees at each beat over 4 seconds of a clock tapped at [bpm]. */
+    private fun beatHues(bpm: Double, colors: BeatColors, renderer: LightRenderer = LightRenderer()): List<Int> {
+        val tracker = BeatTracker(93.75f)
+        val period = 60.0 / bpm
+        List(4) { 10.0 + it * period }.forEach(tracker::tap)
+        val frame = MusicFrame(4).apply { level = 0.5f }
+        val hues = mutableListOf<Int>()
+        val start = 10.0 + 3 * period + 0.1
+        var time = start
+        while (time < start + 4) {
+            tracker.process(0f, 0.1f)
+            renderer.render(frame, MusicStyle.BeatLock, dt, tracker, lead = time - tracker.time, beatColors = colors)
+            if (renderer.beatEdge) {
+                val c = renderer.fullColor
+                hues += Math.round(java.awt.Color.RGBtoHSB(c.red, c.green, c.blue, null)[0] * 360f)
+            }
+            time += dt
+        }
+        return hues
+    }
+
+    @Test
+    fun tempoColoursKeepOneColourPerTempo() {
+        val at120 = beatHues(120.0, BeatColors.Tempo)
+        assertTrue("hues $at120", at120.size >= 6 && at120.max() - at120.min() <= 3)
+        val at60 = beatHues(60.0, BeatColors.Tempo)
+        assertEquals(at120.first().toFloat(), at60.first().toFloat(), 3f)
+        val at100 = beatHues(100.0, BeatColors.Tempo)
+        assertTrue("120: ${at120.first()}, 100: ${at100.first()}", abs(at120.first() - at100.first()) > 40)
+    }
+
+    @Test
+    fun barColoursChangeEachBar() {
+        val hues = beatHues(120.0, BeatColors.Bars)
+        assertNotEquals(hues.first(), hues[4])
+    }
+
+    @Test
+    fun stripColoursKeepTheStripHue() {
+        val hues = beatHues(120.0, BeatColors.Strip, LightRenderer(baseHue = 30f, baseSaturation = 1f))
+        assertTrue("hues $hues", hues.isNotEmpty() && hues.all { it in 28..32 })
     }
 
     @Test

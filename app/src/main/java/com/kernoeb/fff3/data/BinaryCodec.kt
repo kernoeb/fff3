@@ -21,7 +21,7 @@ import java.time.DayOfWeek
  */
 object AppDataCodec {
 
-    private const val VERSION = 6
+    private const val VERSION = 7
 
     fun write(data: AppData, output: OutputStream) {
         val out = DataOutputStream(output)
@@ -56,6 +56,7 @@ object AppDataCodec {
             writeUTF(address)
             writeInt(millis)
         }
+        out.writeUTF(data.settings.beatColors.name)
         out.flush()
     }
 
@@ -95,6 +96,7 @@ object AppDataCodec {
             },
             outputDelaysMs = if (version >= 4) inp.readList { AudioOutput.valueOf(readUTF()) to readInt() }.toMap() else emptyMap(),
             lightDelaysMs = if (version >= 5) inp.readList { readUTF() to readInt() }.toMap() else emptyMap(),
+            beatColors = if (version >= 7) BeatColors.valueOf(inp.readUTF()) else BeatColors.Bars,
         )
         return AppData(devices, groups, favourites, settings)
     }

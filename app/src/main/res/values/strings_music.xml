@@ -29,6 +29,13 @@
     <string name="music_beat_double_description">Double the tempo</string>
     <string name="music_beat_half">÷2</string>
     <string name="music_beat_half_description">Halve the tempo</string>
+    <string name="music_beat_colors">Colours</string>
+    <string name="music_beat_colors_bars">Each bar</string>
+    <string name="music_beat_colors_tempo">Tempo</string>
+    <string name="music_beat_colors_strip">Strip</string>
+    <string name="music_beat_colors_bars_body">A new colour every 4 beats.</string>
+    <string name="music_beat_colors_tempo_body">One colour per tempo. The colour stays until the song changes, and each tempo has its own colour.</string>
+    <string name="music_beat_colors_strip_body">Keeps the strip\'s colour from before music started. Only the brightness follows the beat.</string>
     <string name="music_light_delay">Light delay</string>
     <string name="music_light_delay_value">%1$s ms</string>
     <string name="music_light_delay_body">Fine-tune if the lights come before or after the beat. Higher makes them later.</string>

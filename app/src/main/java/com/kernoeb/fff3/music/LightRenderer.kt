@@ -1,8 +1,10 @@
 package com.kernoeb.fff3.music
 
+import com.kernoeb.fff3.data.BeatColors
 import com.kernoeb.fff3.protocol.Rgb
 import kotlin.math.exp
 import kotlin.math.floor
+import kotlin.math.ln
 import kotlin.math.pow
 
 /** How the lights follow the music. */
@@ -39,6 +41,7 @@ class LightRenderer(
     private var bar = 0
     private var accent = 0f
     private var beatHue = baseHue
+    private var tempoHue = Float.NaN
 
     /** The colour of the last [render], for the visualiser. */
     var color: Rgb = Rgb.Black
@@ -71,7 +74,14 @@ class LightRenderer(
      * [clock] and [lead] are only used by [MusicStyle.BeatLock]: the colour shows the clock
      * [lead] seconds after the newest audio, so it is visible when its beat is heard.
      */
-    fun render(frame: MusicFrame, style: MusicStyle, dt: Float, clock: BeatTracker? = null, lead: Double = 0.0): Rgb {
+    fun render(
+        frame: MusicFrame,
+        style: MusicStyle,
+        dt: Float,
+        clock: BeatTracker? = null,
+        lead: Double = 0.0,
+        beatColors: BeatColors = BeatColors.Bars,
+    ): Rgb {
         beatEdge = false
         beatPhase = -1f
         untilBeat = Double.POSITIVE_INFINITY
@@ -140,12 +150,27 @@ class LightRenderer(
                 } else {
                     beatHue += FALLBACK_DRIFT * dt
                 }
-                hue = beatHue
+                hue = when (beatColors) {
+                    BeatColors.Bars -> beatHue
+                    BeatColors.Strip -> baseHue
+                    BeatColors.Tempo -> {
+                        // While listening, keep the last song's colour rather than drift.
+                        if (clock != null && locked) {
+                            val target = tempoHue(clock.bpm)
+                            tempoHue = if (tempoHue.isNaN()) target else approachAngle(tempoHue, target, dt, TEMPO_HUE_FADE)
+                        }
+                        if (tempoHue.isNaN()) baseHue else wrap(tempoHue)
+                    }
+                }
                 targetHue = hue
                 value = follow(value, frame.level, dt, attack = 0.05f, release = 0.4f)
                 val fallback = FALLBACK_FLOOR + FALLBACK_RANGE * value
                 v = fallback + (beatValue - fallback) * lockMix
-                s = 0.9f + (beatSaturation - 0.9f) * lockMix
+                s = if (beatColors == BeatColors.Strip) {
+                    baseSaturation * (1f + (beatSaturation - 1f) * lockMix)
+                } else {
+                    0.9f + (beatSaturation - 0.9f) * lockMix
+                }
             }
         }
         // LEDs are linear while eyes are not: a power curve makes the fades look even.
@@ -163,6 +188,17 @@ class LightRenderer(
         if (beatInBar == 0) bar++
         beatHue = PALETTE[bar % PALETTE.size] + beatInBar * BEAT_HUE_STEP
         accent = if (beatInBar == 0) 1f else OFFBEAT_ACCENT
+    }
+
+    /**
+     * One full turn of the colour wheel per doubling of tempo, so 64 and 128 BPM share a colour:
+     * the beat clock may lock on either for the same song.
+     */
+    private fun tempoHue(bpm: Float): Float {
+        var folded = bpm.coerceAtLeast(1f)
+        while (folded < TEMPO_HUE_BASE) folded *= 2f
+        while (folded >= TEMPO_HUE_BASE * 2f) folded /= 2f
+        return (ln(folded / TEMPO_HUE_BASE) / ln(2f)) * 360f
     }
 
     private fun follow(current: Float, target: Float, dt: Float, attack: Float, release: Float): Float {
@@ -198,6 +234,8 @@ class LightRenderer(
         const val FALLBACK_DRIFT = 5f
         const val FALLBACK_FLOOR = 0.15f
         const val FALLBACK_RANGE = 0.45f
+        const val TEMPO_HUE_BASE = 80f
+        const val TEMPO_HUE_FADE = 1f
         const val GAMMA = 1.8f
         const val MIN_OUTPUT = 0.01f
     }

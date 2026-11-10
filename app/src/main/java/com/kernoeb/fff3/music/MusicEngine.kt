@@ -159,7 +159,7 @@ class MusicEngine(
                 latencyChanged = calibrate(analyzer.frameRate, tracker, frame.onset, settings.style) || latencyChanged
 
                 val lead = LightTiming.lead(link, captureLag, outputDelay, settings.lightDelayMs / 1000.0)
-                val color = renderer.render(frame, settings.style, dt, tracker, lead)
+                val color = renderer.render(frame, settings.style, dt, tracker, lead, settings.beatColors)
 
                 val live = sync.live
                 frame.bands.copyInto(live.bands)
