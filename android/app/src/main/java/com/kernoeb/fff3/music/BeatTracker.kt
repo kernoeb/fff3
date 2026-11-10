@@ -34,7 +34,8 @@ enum class RelockReason {
  * - the first lock waits a few seconds while an unrelated tempo is almost as strong, as in many intros,
  *   and longer while the readings swap between 2 tempos of the same strength;
  * - a lock from weak readings gives way to a clear tempo, or to one heard as long and now stronger;
- * - a lock the song never backs up, often taken in an intro, gives way to the tempo heard most of the time.
+ * - a lock the song never backs up, often taken in an intro, gives way to the tempo heard most of the time;
+ * - a lock on triplet hi-hats gives way to the slower beat the bass plays, at 2:3.
  *
  * Feed it one analysis frame at a time with [process]. Times are seconds of audio since the start,
  * on the same scale as [time]. Allocates nothing after construction.
@@ -48,6 +49,11 @@ class BeatTracker(
     private var envelopeCount = 0
     private var envelopeIndex = 0
     private val linear = FloatArray(envelope.size)
+    /** Rises in bass loudness, on the same ring as [envelope]: mostly the kick drum. */
+    private val bassEnvelope = FloatArray(envelope.size)
+    private val bassLinear = FloatArray(envelope.size)
+    private var previousBass = 0f
+    private var bassSeconds = 0f
     private val shortFrames = (frameRate * SHORT_WINDOW_S).toInt()
 
     private val minLag = floor(frameRate * 60f / MAX_BPM).toInt()
@@ -180,6 +186,9 @@ class BeatTracker(
         typicalLoudness += (rms - typicalLoudness) * if (quiet) loudSlowAlpha else loudFastAlpha
         quietFrames = if (quiet) quietFrames + 1 else 0
         if (quietFrames == gapFrames) restart(RelockReason.Gap)
+        val bassLevel = ln(1f + BASS_GAIN * bass)
+        val bassRise = maxOf(bassLevel - previousBass, 0f)
+        previousBass = bassLevel
         if (quietFrames >= gapFrames) {
             previousOnset = strength
             return
@@ -195,6 +204,7 @@ class BeatTracker(
         previousOnset = strength
 
         envelope[envelopeIndex] = strength
+        bassEnvelope[envelopeIndex] = bassRise
         envelopeIndex = (envelopeIndex + 1) % envelope.size
         if (envelopeCount < envelope.size) envelopeCount++
 
@@ -265,6 +275,7 @@ class BeatTracker(
     private fun resetEvidence() {
         challenger = 0f
         challengeSeconds = 0f
+        bassSeconds = 0f
         fastCandidate = 0f
         fastSeconds = 0f
         windowBeat = Long.MIN_VALUE
@@ -408,6 +419,7 @@ class BeatTracker(
             }
             BeatLockState.Locked -> {
                 agreeing = if (consistent) agreeing + 1 else 0
+                if (checkBassSlower(lag, estimate)) return
                 if (provisional) {
                     if (related(estimate, OCTAVES)) {
                         if (clear) provisional = false
@@ -469,6 +481,27 @@ class BeatTracker(
             lastReason = RelockReason.NewTempo
             lock(lag, envelopeCount)
         }
+    }
+
+    /**
+     * The lock follows triplet hi-hats when the bass keeps repeating at 1.5 of its periods and
+     * the window hears that slower tempo. Readings of the locked tempo prove nothing, since the
+     * hi-hats still play. Returns true when it re-locked.
+     */
+    private fun checkBassSlower(lag: Float, estimate: Float): Boolean {
+        // Taps and ×2 come from the user: only a lock from what was heard can be a wrong guess.
+        if (guessedAt == Double.NEGATIVE_INFINITY || estimate <= 0f) return false
+        if (!bassSaysSlower((period * frameRate).toFloat(), envelopeCount)) {
+            bassSeconds = 0f
+            return false
+        }
+        val slower = (2.0 / 3.0 * 60.0 / period).toFloat()
+        if (abs(estimate - slower) > slower * SAME_TEMPO) return false
+        bassSeconds += ESTIMATE_EVERY_S
+        if (bassSeconds < BASS_RELOCK_S) return false
+        lastReason = RelockReason.NewTempo
+        lock(lag, envelopeCount)
+        return true
     }
 
     private fun near(heard: Float, target: Float): Boolean = abs(heard - target) < target * CONSISTENT
@@ -635,6 +668,8 @@ class BeatTracker(
             }
         }
         if (bestLag < 0) return 0f
+        // Before the first lock the window is short, and a wrong swap there costs the whole song.
+        if (state == BeatLockState.Locked) bestLag = slowerForBass(bestLag, n, top)
         estimateConfidence = (correlation[bestLag] / energy).coerceAtLeast(0f)
         var rival = 0f
         for (lag in minLag..minOf(maxLag, top - 1)) {
@@ -672,6 +707,53 @@ class BeatTracker(
             sumMultiples += multiple
         }
         return if (sumMultiples > 0) sumPeaks / sumMultiples else bestLag.toFloat()
+    }
+
+    /**
+     * Triplet hi-hats over a slow beat read as a tempo 3:2 too fast. When the bass hits repeat
+     * every 1.5 periods of [lag] and not every 1, 2 or 4, returns the slower lag, else [lag].
+     */
+    private fun slowerForBass(lag: Int, n: Int, top: Int): Int {
+        val slow = (1.5f * lag).roundToInt()
+        if (slow > maxLag || slow + 2 > top || !bassSaysSlower(lag.toFloat(), n)) return lag
+        var best = slow
+        for (candidate in slow - 2..slow + 2) if (correlation[candidate] > correlation[best]) best = candidate
+        return best
+    }
+
+    /**
+     * True when the bass hits of the newest [n] frames repeat every 1.5 periods of [lag], and not
+     * every 1, 2 or 4. A syncopated bass line repeats at 1.5 too, but also every bar of 4.
+     */
+    private fun bassSaysSlower(lag: Float, n: Int): Boolean {
+        if (4 * lag + 2 >= n) return false
+        val start = (envelopeIndex - n + envelope.size) % envelope.size
+        var mean = 0f
+        for (i in 0 until n) mean += bassEnvelope[(start + i) % envelope.size]
+        mean /= n
+        var before = bassEnvelope[start] - mean
+        for (i in 0 until n) {
+            val current = bassEnvelope[(start + i) % envelope.size] - mean
+            val after = bassEnvelope[(start + minOf(i + 1, n - 1)) % envelope.size] - mean
+            bassLinear[i] = (before + 2 * current + after) / 4
+            before = current
+        }
+        val energy = bassCorrelation(0f, n)
+        if (energy <= 0f) return false
+        val atSlow = bassCorrelation(1.5f * lag, n) / energy
+        val atFast = maxOf(bassCorrelation(lag, n), bassCorrelation(2f * lag, n), bassCorrelation(4f * lag, n)) / energy
+        return atSlow >= BASS_SLOW_MIN && atSlow >= BASS_SLOW_RATIO * atFast
+    }
+
+    private fun bassCorrelation(lag: Float, n: Int): Float {
+        val whole = lag.toInt()
+        var a = 0f
+        var b = 0f
+        for (i in 0 until n - whole) a += bassLinear[i] * bassLinear[i + whole]
+        for (i in 0 until n - whole - 1) b += bassLinear[i] * bassLinear[i + whole + 1]
+        a /= n - whole
+        b /= n - whole - 1
+        return a + (b - a) * (lag - whole)
     }
 
     /**
@@ -789,6 +871,11 @@ class BeatTracker(
         val RATIOS = floatArrayOf(1f, 2f, 0.5f, 1.5f, 2f / 3f, 4f / 3f, 0.75f)
         val OCTAVES = floatArrayOf(1f, 2f, 0.5f)
         const val SAME_TEMPO = 0.03f
+        const val BASS_GAIN = 1_000f
+        // The bass must repeat clearly at 1.5 periods, and clearly better than at 1, 2 or 4.
+        const val BASS_SLOW_MIN = 0.25f
+        const val BASS_SLOW_RATIO = 1.5f
+        const val BASS_RELOCK_S = 8f
 
         const val CHALLENGE_CONFIDENCE = 0.25f
         const val CHALLENGE_MARGIN = 1.3f

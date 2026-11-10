@@ -28,6 +28,11 @@ public final class BeatTracker {
     private var envelopeCount = 0
     private var envelopeIndex = 0
     private var linear: [Float]
+    /// Rises in bass loudness, on the same ring as `envelope`: mostly the kick drum.
+    private var bassEnvelope: [Float]
+    private var bassLinear: [Float]
+    private var previousBass: Float = 0
+    private var bassSeconds: Float = 0
     private let shortFrames: Int
 
     private let minLag: Int
@@ -136,6 +141,8 @@ public final class BeatTracker {
         let envelopeSize = JMath.toInt(frameRate * C.windowS)
         envelope = [Float](repeating: 0, count: envelopeSize)
         linear = [Float](repeating: 0, count: envelopeSize)
+        bassEnvelope = [Float](repeating: 0, count: envelopeSize)
+        bassLinear = [Float](repeating: 0, count: envelopeSize)
         shortFrames = JMath.toInt(frameRate * C.shortWindowS)
         minLag = JMath.toInt(JMath.floor(frameRate * 60 / C.maxBpm))
         maxLag = JMath.toInt(JMath.ceil(frameRate * 60 / C.minBpm))
@@ -170,6 +177,9 @@ public final class BeatTracker {
         typicalLoudness += (rms - typicalLoudness) * (quiet ? loudSlowAlpha : loudFastAlpha)
         quietFrames = quiet ? quietFrames + 1 : 0
         if quietFrames == gapFrames { restart(.Gap) }
+        let bassLevel = JMath.ln(1 + C.bassGain * bass)
+        let bassRise = max(bassLevel - previousBass, 0)
+        previousBass = bassLevel
         if quietFrames >= gapFrames {
             previousOnset = strength
             return
@@ -185,6 +195,7 @@ public final class BeatTracker {
         previousOnset = strength
 
         envelope[envelopeIndex] = strength
+        bassEnvelope[envelopeIndex] = bassRise
         envelopeIndex = (envelopeIndex + 1) % envelope.count
         if envelopeCount < envelope.count { envelopeCount += 1 }
 
@@ -256,6 +267,7 @@ public final class BeatTracker {
     private func resetEvidence() {
         challenger = 0
         challengeSeconds = 0
+        bassSeconds = 0
         fastCandidate = 0
         fastSeconds = 0
         windowBeat = Self.noBeat
@@ -392,6 +404,7 @@ public final class BeatTracker {
             }
         case .Locked:
             agreeing = consistent ? agreeing + 1 : 0
+            if checkBassSlower(lag, estimate) { return }
             if provisional {
                 if related(estimate, C.octaves) {
                     if clear { provisional = false }
@@ -445,6 +458,25 @@ public final class BeatTracker {
             lastReason = .NewTempo
             lock(lag, envelopeCount)
         }
+    }
+
+    /// The lock follows triplet hi-hats when the bass keeps repeating at 1.5 of its periods and
+    /// the window hears that slower tempo. Readings of the locked tempo prove nothing, since the
+    /// hi-hats still play. Returns true when it re-locked.
+    private func checkBassSlower(_ lag: Float, _ estimate: Float) -> Bool {
+        // Taps and ×2 come from the user: only a lock from what was heard can be a wrong guess.
+        if guessedAt == -Double.infinity || estimate <= 0 { return false }
+        if !bassSaysSlower(Float(period * Double(frameRate)), envelopeCount) {
+            bassSeconds = 0
+            return false
+        }
+        let slower = Float(2.0 / 3.0 * 60.0 / period)
+        if abs(estimate - slower) > slower * C.sameTempo { return false }
+        bassSeconds += C.estimateEveryS
+        if bassSeconds < C.bassRelockS { return false }
+        lastReason = .NewTempo
+        lock(lag, envelopeCount)
+        return true
     }
 
     private func near(_ heard: Float, _ target: Float) -> Bool { abs(heard - target) < target * C.consistent }
@@ -609,6 +641,8 @@ public final class BeatTracker {
             }
         }
         if bestLag < 0 { return 0 }
+        // Before the first lock the window is short, and a wrong swap there costs the whole song.
+        if state == .Locked { bestLag = slowerForBass(bestLag, n, top) }
         estimateConfidence = max(correlation[bestLag] / energy, 0)
         var rival: Float = 0
         for lag in minLag...lastLag where !relatedLag(lag, bestLag) { rival = max(rival, correlation[lag]) }
@@ -644,6 +678,50 @@ public final class BeatTracker {
             sumMultiples += multiple
         }
         return sumMultiples > 0 ? sumPeaks / Float(sumMultiples) : Float(bestLag)
+    }
+
+    /// Triplet hi-hats over a slow beat read as a tempo 3:2 too fast. When the bass hits repeat
+    /// every 1.5 periods of `lag` and not every 1, 2 or 4, returns the slower lag, else `lag`.
+    private func slowerForBass(_ lag: Int, _ n: Int, _ top: Int) -> Int {
+        let slow = JMath.roundToInt(1.5 * Float(lag))
+        if slow > maxLag || slow + 2 > top || !bassSaysSlower(Float(lag), n) { return lag }
+        var best = slow
+        for candidate in (slow - 2)...(slow + 2) where correlation[candidate] > correlation[best] { best = candidate }
+        return best
+    }
+
+    /// True when the bass hits of the newest `n` frames repeat every 1.5 periods of `lag`, and not
+    /// every 1, 2 or 4. A syncopated bass line repeats at 1.5 too, but also every bar of 4.
+    private func bassSaysSlower(_ lag: Float, _ n: Int) -> Bool {
+        if 4 * lag + 2 >= Float(n) { return false }
+        let size = envelope.count
+        let start = (envelopeIndex - n + size) % size
+        var mean: Float = 0
+        for i in 0..<n { mean += bassEnvelope[(start + i) % size] }
+        mean /= Float(n)
+        var before = bassEnvelope[start] - mean
+        for i in 0..<n {
+            let current = bassEnvelope[(start + i) % size] - mean
+            let after = bassEnvelope[(start + min(i + 1, n - 1)) % size] - mean
+            bassLinear[i] = (before + 2 * current + after) / 4
+            before = current
+        }
+        let energy = bassCorrelation(0, n)
+        if energy <= 0 { return false }
+        let atSlow = bassCorrelation(1.5 * lag, n) / energy
+        let atFast = max(bassCorrelation(lag, n), bassCorrelation(2 * lag, n), bassCorrelation(4 * lag, n)) / energy
+        return atSlow >= C.bassSlowMin && atSlow >= C.bassSlowRatio * atFast
+    }
+
+    private func bassCorrelation(_ lag: Float, _ n: Int) -> Float {
+        let whole = JMath.toInt(lag)
+        var a: Float = 0
+        var b: Float = 0
+        for i in 0..<(n - whole) { a += bassLinear[i] * bassLinear[i + whole] }
+        for i in 0..<(n - whole - 1) { b += bassLinear[i] * bassLinear[i + whole + 1] }
+        a /= Float(n - whole)
+        b /= Float(n - whole - 1)
+        return a + (b - a) * (lag - Float(whole))
     }
 
     /// True when `lag` is `bestLag` or one of its ratios, give or take. Peaks are a few lags
@@ -759,6 +837,11 @@ public final class BeatTracker {
         static let ratios: [Float] = [1, 2, 0.5, 1.5, 2 / 3, 4 / 3, 0.75]
         static let octaves: [Float] = [1, 2, 0.5]
         static let sameTempo: Float = 0.03
+        static let bassGain: Float = 1_000
+        // The bass must repeat clearly at 1.5 periods, and clearly better than at 1, 2 or 4.
+        static let bassSlowMin: Float = 0.25
+        static let bassSlowRatio: Float = 1.5
+        static let bassRelockS: Float = 8
 
         static let challengeConfidence: Float = 0.25
         static let challengeMargin: Float = 1.3

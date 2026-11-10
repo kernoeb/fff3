@@ -412,6 +412,29 @@ class BeatTrackerTest {
     }
 
     @Test
+    fun tripletHatsGiveWayToTheSlowerKick() {
+        // Hi-hats at 125 BPM lead the onsets, while the kick plays 83.3 BPM, 2:3 of it, as in slow trap.
+        // The lock takes the hats first; the bass then says the beat is the kick, and the lock follows.
+        val tracker = BeatTracker(93.75f)
+        val random = Random(5)
+        var bass = 0f
+        var switched = Double.NaN
+        for (frame in 0 until 60 * 94) {
+            var strength = random.nextFloat() * 0.3f
+            if (frame % 45 == 0) strength += 1.5f
+            val kick = frame % 67.5 < 1.0
+            if (kick) strength += 0.8f
+            bass = if (kick) 0.05f else bass * 0.9f
+            tracker.process(strength, 0.1f, bass + random.nextFloat() * 1e-4f)
+            if (frame == 10 * 94) assertEquals(125f, tracker.bpm, 1f)
+            if (switched.isNaN() && abs(tracker.bpm - 83.3f) < 1.5f) switched = tracker.time
+        }
+        assertTrue("kick tempo at $switched s", switched < 30.0)
+        assertEquals(83.3f, tracker.bpm, 1.5f)
+        assertEquals(RelockReason.NewTempo, tracker.lastReason)
+    }
+
+    @Test
     fun heardLockKeepsItsTempoWhenAnotherTempoTakesOver() {
         // 40 s of a steady 120 BPM beat proves the lock. A long section that only hears 160 BPM
         // must not move it: within a song, 4:3 is the same music counted another way.
