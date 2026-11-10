@@ -318,6 +318,38 @@ class BeatTrackerTest {
     }
 
     @Test
+    fun weakLockGivesWayToASteadyWeakTempo() {
+        // A faint 120 BPM pulse locks from weak readings, then an equally faint 150 BPM beat takes over.
+        // 150 is never clear, but it comes back reading after reading and the window hears it better.
+        val tracker = BeatTracker(93.75f)
+        val bpms = feed(tracker, 40.0, noise = 1.0f) { t -> if (t < 14.0) mapOf(120.0 to 1f) else mapOf(150.0 to 1f) }
+        assertEquals(120f, bpms.first { it.first >= 13.0 }.second, 1f)
+        val switched = bpms.first { abs(it.second - 150f) < 1f }.first
+        assertTrue("150 BPM at $switched s", switched < 29.0)
+        assertEquals(RelockReason.NewTempo, tracker.lastReason)
+        assertEquals(2, tracker.lockCount)
+    }
+
+    @Test
+    fun readingsThatSwapBetweenTwoEqualTemposAreTorn() {
+        // As in an intro where 131 and 163 BPM are as strong as each other and the readings swap.
+        val tracker = BeatTracker(93.75f)
+        val readings = FloatArray(60)
+        fun torn(rival: Float, vararg heard: Float): Boolean {
+            heard.copyInto(readings)
+            return tracker.torn(131f, 0.42f, rival, readings, heard.size)
+        }
+        assertTrue(torn(0.43f, 163f, 163f, 131f, 131f, 131f))
+        // A clearly weaker rival is no coin toss.
+        assertFalse(torn(0.3f, 163f, 163f, 131f, 131f, 131f))
+        // Half, double and 3:2 readings are the same music, and a silent reading is no tempo.
+        assertFalse(torn(0.43f, 65.5f, 262f, 196.5f, 0f, 131f))
+        // The swap counts for 8 readings, then it is forgotten.
+        assertTrue(torn(0.43f, 163f, 131f, 131f, 131f, 131f, 131f, 131f, 131f))
+        assertFalse(torn(0.43f, 163f, 131f, 131f, 131f, 131f, 131f, 131f, 131f, 131f))
+    }
+
+    @Test
     fun introTempoGivesWayToTheSongsSteadyBeat() {
         // A short, clear 160 BPM intro, then a faint 120 BPM beat for the rest of the song. 160 is 4:3 of
         // 120, so once the lock is old the challenger ignores it, and 120 is never clear enough.

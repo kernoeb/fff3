@@ -31,7 +31,9 @@ enum class RelockReason {
  * - within a song, another tempo must clearly win for [SLOW_RELOCK_S] seconds;
  * - a quick re-lock needs a song boundary: a gap, or a new sound plus a tempo that leaves the beat grid;
  * - while the beat is weak (breakdown, vocals only) the clock coasts and the tempo is frozen;
- * - the first lock waits a few seconds while an unrelated tempo is almost as strong, as in many intros;
+ * - the first lock waits a few seconds while an unrelated tempo is almost as strong, as in many intros,
+ *   and longer while the readings swap between 2 tempos of the same strength;
+ * - a lock from weak readings gives way to a clear tempo, or to one heard as long and now stronger;
  * - a lock the song never backs up, often taken in an intro, gives way to the tempo heard most of the time.
  *
  * Feed it one analysis frame at a time with [process]. Times are seconds of audio since the start,
@@ -393,21 +395,33 @@ class BeatTracker(
         when (state) {
             BeatLockState.Acquiring -> {
                 // 2 clear readings in a row lock at once. A weak or contested tempo must
-                // come back for [PATIENT_ESTIMATES] readings in a row instead.
-                agreeing = if (consistent) agreeing + 1 else 0
+                // come back for [PATIENT_ESTIMATES] readings in a row instead. Torn readings do not count.
+                if (!consistent) {
+                    agreeing = 0
+                } else if (!torn(estimate, estimateConfidence, estimateRival, recent, recentCount)) {
+                    agreeing++
+                }
                 if (clearTwice || agreeing + 1 >= PATIENT_ESTIMATES) {
                     lock(lag, envelopeCount)
                     provisional = !clearTwice
                 }
             }
             BeatLockState.Locked -> {
-                if (provisional && clear) {
-                    // A lock from weak readings gives way to the first clear tempo outside its octaves.
+                agreeing = if (consistent) agreeing + 1 else 0
+                if (provisional) {
                     if (related(estimate, OCTAVES)) {
-                        provisional = false
-                    } else if (clearTwice && now - guessedAt < YOUNG_LOCK_S) {
-                        lastReason = RelockReason.NewTempo
-                        lock(lag, envelopeCount)
+                        if (clear) provisional = false
+                    } else if (now - guessedAt < YOUNG_LOCK_S) {
+                        // A lock from weak readings gives way to the first clear tempo outside its octaves,
+                        // or to one that came back as long as the lock needed and is now heard better.
+                        val patient = !coasting && agreeing + 1 >= PATIENT_ESTIMATES &&
+                            estimateConfidence >= octaveSupport * PATIENT_MARGIN
+                        if (clearTwice || patient) {
+                            lastReason = RelockReason.NewTempo
+                            // The new lock is not provisional: letting it move again pulled right
+                            // tempos away mid-song in tests (Heavy Is The Crown at 55 s).
+                            lock(lag, envelopeCount)
+                        }
                     }
                 }
                 if (estimate > 0f) refineTempo(estimate)
@@ -477,6 +491,20 @@ class BeatTracker(
         lastReason = RelockReason.NewTempo
         lock(lag, envelopeCount)
         return true
+    }
+
+    /**
+     * True when an unrelated [rival] tempo is as strong as [estimate] and the latest [readings]
+     * swapped between them: the music has 2 pulses, and picking one is a coin toss. [readings] is
+     * a ring holding [count] estimates so far, the newest being [estimate] itself.
+     */
+    internal fun torn(estimate: Float, confidence: Float, rival: Float, readings: FloatArray, count: Int): Boolean {
+        if (rival < TORN_RIVAL_SHARE * confidence) return false
+        for (back in 1 until minOf(TORN_READINGS, count)) {
+            val heard = readings[(count - 1 - back) % readings.size]
+            if (heard > 0f && RATIOS.none { abs(heard - estimate * it) <= estimate * it * SAME_TEMPO }) return true
+        }
+        return false
     }
 
     /** Share of the recent readings at [bpm], its half or its double. */
@@ -693,6 +721,7 @@ class BeatTracker(
         val frame = frames - last + beatIndex.toDouble()
         setClock(frame / frameRate - onsetDelay, downbeat.toLong(), lag / frameRate.toDouble(), heard = true)
         lockCount++
+        agreeing = 0
     }
 
     /** Where the latest beat sits in the newest [n] linearised frames, from a comb at [lag]. */
@@ -740,6 +769,10 @@ class BeatTracker(
         const val CONSISTENT = 0.02f
         const val PATIENT_CONFIDENCE = 0.12f
         const val PATIENT_ESTIMATES = 8
+        // A provisional lock yields to a patient tempo heard this much better than the locked one.
+        const val PATIENT_MARGIN = 1.2f
+        const val TORN_RIVAL_SHARE = 0.95f
+        const val TORN_READINGS = 8
         // An unrelated tempo this close to the best one makes the reading unclear.
         const val RIVAL_SHARE = 0.8f
         const val RIVAL_TOLERANCE = 0.04f
