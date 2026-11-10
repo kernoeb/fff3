@@ -1,6 +1,7 @@
 package com.kernoeb.fff3.music
 
 import com.kernoeb.fff3.data.BeatColors
+import com.kernoeb.fff3.data.MusicStyle
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder

@@ -3,6 +3,7 @@ package com.kernoeb.fff3.music
 import com.kernoeb.fff3.ble.ControlTarget
 import com.kernoeb.fff3.data.BeatColors
 import com.kernoeb.fff3.data.MusicSource
+import com.kernoeb.fff3.data.MusicStyle
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

@@ -8,6 +8,7 @@ import com.kernoeb.fff3.data.BeatColors
 import com.kernoeb.fff3.data.DeviceStateStore
 import com.kernoeb.fff3.data.LedRepository
 import com.kernoeb.fff3.data.MusicSource
+import com.kernoeb.fff3.data.MusicStyle
 import com.kernoeb.fff3.music.BeatCommand
 import com.kernoeb.fff3.music.BeatStatus
 import com.kernoeb.fff3.music.LatencyStatus
@@ -15,7 +16,6 @@ import com.kernoeb.fff3.music.LightTiming
 import com.kernoeb.fff3.music.LiveMusic
 import com.kernoeb.fff3.music.MusicSettings
 import com.kernoeb.fff3.music.MusicStatus
-import com.kernoeb.fff3.music.MusicStyle
 import com.kernoeb.fff3.music.MusicSync
 import com.kernoeb.fff3.music.StopReason
 import com.kernoeb.fff3.protocol.Rgb
@@ -123,9 +123,18 @@ class MusicViewModel(
         else music.setStatus(MusicStatus.Stopped(StopReason.CaptureDenied))
     }
 
-    fun selectStyle(style: MusicStyle) = music.updateSettings { it.copy(style = style) }
+    fun selectStyle(style: MusicStyle) {
+        music.updateSettings { it.copy(style = style) }
+        viewModelScope.launch { repository.updateSettings { it.copy(musicStyle = style) } }
+    }
 
+    /** Applies at once while the slider moves; [saveSensitivity] keeps it. */
     fun setSensitivity(value: Float) = music.updateSettings { it.copy(sensitivity = value) }
+
+    fun saveSensitivity() {
+        val value = music.settings.value.sensitivity
+        viewModelScope.launch { repository.updateSettings { it.copy(musicSensitivity = value) } }
+    }
 
     /** [nanos] is when the finger touched, on the [System.nanoTime] clock. */
     fun tap(nanos: Long) = music.send(BeatCommand.Tap(nanos))

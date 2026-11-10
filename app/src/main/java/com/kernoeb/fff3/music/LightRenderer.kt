@@ -1,25 +1,12 @@
 package com.kernoeb.fff3.music
 
 import com.kernoeb.fff3.data.BeatColors
+import com.kernoeb.fff3.data.MusicStyle
 import com.kernoeb.fff3.protocol.Rgb
 import kotlin.math.exp
 import kotlin.math.floor
 import kotlin.math.ln
 import kotlin.math.pow
-
-/** How the lights follow the music. */
-enum class MusicStyle {
-    /** Each beat flashes a new colour, then fades. */
-    Pulse,
-    /** Colour follows the pitch of the sound: bass is red, bright sound is blue and violet. */
-    Spectrum,
-    /** One colour, brightness follows loudness. */
-    Energy,
-    /** Slow colour drift that breathes with the music. */
-    Calm,
-    /** Follows its own beat clock, so the lights stay on the beat through quiet parts. */
-    BeatLock,
-}
 
 /**
  * Turns [MusicFrame]s into one colour for the strips, with smoothing so it never flickers.

@@ -81,6 +81,11 @@ class AppContainer(context: Context) {
                     music.updateSettings { it.copy(beatColors = colors) }
                 }
             }
+            appScope.launch {
+                repository.settings.map { it.musicStyle to it.musicSensitivity }.distinctUntilChanged().collect { (style, sensitivity) ->
+                    music.updateSettings { it.copy(style = style, sensitivity = sensitivity) }
+                }
+            }
         }
     }
 }

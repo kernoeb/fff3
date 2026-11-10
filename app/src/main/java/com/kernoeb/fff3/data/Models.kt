@@ -50,7 +50,24 @@ data class Settings(
     /** Camera-measured time from a colour write to the strip showing it, by strip address. */
     val lightDelaysMs: Map<String, Int> = emptyMap(),
     val beatColors: BeatColors = BeatColors.Bars,
+    val musicStyle: MusicStyle = MusicStyle.Pulse,
+    /** 0..1: higher reacts to quieter sound and softer beats. */
+    val musicSensitivity: Float = 0.5f,
 )
+
+/** How the lights follow the music. */
+enum class MusicStyle {
+    /** Each beat flashes a new colour, then fades. */
+    Pulse,
+    /** Colour follows the pitch of the sound: bass is red, bright sound is blue and violet. */
+    Spectrum,
+    /** One colour, brightness follows loudness. */
+    Energy,
+    /** Slow colour drift that breathes with the music. */
+    Calm,
+    /** Follows its own beat clock, so the lights stay on the beat through quiet parts. */
+    BeatLock,
+}
 
 /** Where Beat lock takes its colour from. */
 enum class BeatColors {

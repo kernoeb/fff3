@@ -51,6 +51,8 @@ class CodecTest {
                 outputDelaysMs = mapOf(AudioOutput.Bluetooth to 212, AudioOutput.Speaker to 18),
                 lightDelaysMs = mapOf("BE:FF:20:00:00:01" to 42, "BE:FF:20:00:00:02" to 97),
                 beatColors = BeatColors.Tempo,
+                musicStyle = MusicStyle.BeatLock,
+                musicSensitivity = 0.8f,
             ),
         )
         val bytes = ByteArrayOutputStream().also { AppDataCodec.write(data, it) }.toByteArray()
@@ -80,6 +82,28 @@ class CodecTest {
         val bytes = ByteArrayOutputStream().also { AppDataCodec.write(data, it) }.toByteArray()
         assertEquals(data, AppDataCodec.read(ByteArrayInputStream(bytes)))
         assertEquals(50, Settings().musicLightDelayMs)
+    }
+
+    @Test
+    fun version1FileKeepsItsSettingsAndDefaultsTheMusicStyle() {
+        val bytes = ByteArrayOutputStream().also { output ->
+            java.io.DataOutputStream(output).apply {
+                writeInt(1)
+                repeat(3) { writeInt(0) }
+                writeBoolean(false)
+                writeBoolean(true)
+                writeUTF(MusicSource.Microphone.name)
+                writeInt(-20)
+                writeInt(0)
+                writeInt(0)
+                writeUTF(BeatColors.Tempo.name)
+            }
+        }.toByteArray()
+        val settings = AppDataCodec.read(ByteArrayInputStream(bytes)).settings
+        assertEquals(
+            Settings(accentFollowsStrip = false, musicSource = MusicSource.Microphone, musicLightDelayMs = -20, beatColors = BeatColors.Tempo),
+            settings,
+        )
     }
 
     @Test(expected = IOException::class)

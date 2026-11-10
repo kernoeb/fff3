@@ -15,10 +15,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -82,17 +82,17 @@ import com.kernoeb.fff3.ble.ControlTarget
 import com.kernoeb.fff3.data.AudioOutput
 import com.kernoeb.fff3.data.BeatColors
 import com.kernoeb.fff3.data.MusicSource
+import com.kernoeb.fff3.data.MusicStyle
 import com.kernoeb.fff3.music.LatencyStatus
 import com.kernoeb.fff3.music.LiveMusic
 import com.kernoeb.fff3.music.MusicStatus
-import com.kernoeb.fff3.music.MusicStyle
 import com.kernoeb.fff3.music.StopReason
 import com.kernoeb.fff3.system.MusicService
 import com.kernoeb.fff3.ui.appViewModel
 import com.kernoeb.fff3.ui.theme.toColor
-import kotlinx.coroutines.isActive
 import kotlin.math.exp
 import kotlin.math.roundToInt
+import kotlinx.coroutines.isActive
 
 /** Phone music mode: pick where and how, then start. The lights keep going with the screen off. */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -340,7 +340,11 @@ fun MusicScreen(initialTarget: ControlTarget?, onBack: () -> Unit, onCalibrateLi
             }
 
             SectionTitle(R.string.music_sensitivity)
-            Slider(value = state.settings.sensitivity, onValueChange = viewModel::setSensitivity)
+            Slider(
+                value = state.settings.sensitivity,
+                onValueChange = viewModel::setSensitivity,
+                onValueChangeFinished = viewModel::saveSensitivity,
+            )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(stringResource(R.string.music_sensitivity_low), style = MaterialTheme.typography.labelMedium)
                 Text(stringResource(R.string.music_sensitivity_high), style = MaterialTheme.typography.labelMedium)

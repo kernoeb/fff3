@@ -1,13 +1,14 @@
 package com.kernoeb.fff3.music
 
 import com.kernoeb.fff3.data.BeatColors
+import com.kernoeb.fff3.data.MusicStyle
+import kotlin.math.abs
+import kotlin.math.exp
+import kotlin.random.Random
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import kotlin.math.abs
-import kotlin.math.exp
-import kotlin.random.Random
 
 class DelayCorrelationTest {
 
