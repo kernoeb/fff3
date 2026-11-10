@@ -42,7 +42,7 @@ class SongReplayTest {
                 tracker.scaleTempo(2.0)
                 doubled = true
             }
-            tracker.process(frame.onset, frame.rms, frame.rawBass, frame.rawMid, frame.rawTreble)
+            tracker.process(frame.beatOnset, frame.rms, frame.rawBass, frame.rawMid, frame.rawTreble)
             val color = renderer.render(frame, MusicStyle.BeatLock, dt, tracker, 0.0, BeatColors.Tempo)
             val bright = maxOf(color.red, color.green, color.blue)
             peak = maxOf(peak, bright)

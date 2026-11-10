@@ -32,6 +32,7 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home
 - The Mac can talk to the strips with Python `bleak` (write to `fff3`, service `fff0`, write without response). The strips advertise as `ELK-BLEDOM ` with a trailing space.
 - Firmware `P10FT-V5.12R2776`. `fff4` sends no notifications, and reading `fff3` returns a stale buffer.
 - To check Beat lock on a real song without the phone: `ffmpeg -i song.mp3 -ac 1 -ar 48000 -f f32le song.f32`, then `FFF3_SONG=song.f32 ./gradlew :app:testDebugUnitTest --tests '*SongReplayTest*' --rerun -i`. It prints tempo, energy and brightness each second. Commas join files into a playlist.
+- To score Beat lock tempo on several songs: `FFF3_BENCH="a.f32=114;b.f32=92" ./gradlew :app:testDebugUnitTest --tests '*BeatBenchTest*' --rerun -i | grep BENCH`. Half and double tempo count as right. `python3 tools/micsim.py in.f32 out.f32 -30` turns a song into what the phone microphone hears 50 cm from a speaker (-45 for low volume; needs scipy). Tune on some songs and check on others you did not tune on.
 - Bluetooth write callbacks fire when Android queues the write, not when the strip receives it. The real light delay is measured with the camera: Calibrate light delay, from strip settings or the music screen. Logs: `adb logcat -s fff3-calibrate`.
 
 ## Code rules

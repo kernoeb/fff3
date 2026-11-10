@@ -96,6 +96,10 @@ class BeatTracker(
     /** How strongly the window hears the locked tempo, 0..1. */
     var lockedSupport = 0f
         private set
+    /** Like [lockedSupport], from the locked tempo, its half and its double only. */
+    private var octaveSupport = 0f
+    /** When the clock was last set from what was heard, rather than from taps or ×2. */
+    private var guessedAt = Double.NEGATIVE_INFINITY
     private var previousEstimate = 0f
     private var challenger = 0f
     private var fastCandidate = 0f
@@ -245,7 +249,8 @@ class BeatTracker(
         refinePending = false
     }
 
-    private fun setClock(beatTime: Double, beat: Long, newPeriod: Double) {
+    private fun setClock(beatTime: Double, beat: Long, newPeriod: Double, heard: Boolean = false) {
+        guessedAt = if (heard) time else Double.NEGATIVE_INFINITY
         anchorTime = beatTime
         anchorBeat = beat
         period = newPeriod
@@ -365,16 +370,22 @@ class BeatTracker(
             }
             BeatLockState.Locked -> {
                 if (estimate > 0f) refineTempo(estimate)
-                weighChallenger(lag, estimate)
+                weighChallenger(lag, estimate, now)
                 if (state == BeatLockState.Locked) checkSongChange(now)
             }
         }
     }
 
-    /** Within a song: another tempo must clearly beat the locked one for a long time. */
-    private fun weighChallenger(lag: Float, estimate: Float) {
+    /**
+     * Within a song: another tempo must clearly beat the locked one for a long time. Soon after a
+     * lock from what was heard, a tempo at 3:2 or 4:3 can also win, since the lock may be a guess.
+     * Later it cannot, so a breakdown does not move the beat.
+     */
+    private fun weighChallenger(lag: Float, estimate: Float, now: Double) {
         if (estimate <= 0f || estimateConfidence < CHALLENGE_CONFIDENCE) return
-        if (related(estimate) || estimateConfidence < lockedSupport * CHALLENGE_MARGIN) {
+        val young = now - guessedAt < YOUNG_LOCK_S
+        val support = if (young) octaveSupport else lockedSupport
+        if (related(estimate, if (young) OCTAVES else RATIOS) || estimateConfidence < support * CHALLENGE_MARGIN) {
             challengeSeconds = 0f
             challenger = 0f
             return
@@ -385,7 +396,9 @@ class BeatTracker(
             challenger = estimate
             challengeSeconds = ESTIMATE_EVERY_S
         }
-        if (challengeSeconds >= SLOW_RELOCK_S) {
+        // A young lock the window barely hears was likely a wrong guess: it yields sooner.
+        val hold = if (young && support < WEAK_SUPPORT) WEAK_RELOCK_S else SLOW_RELOCK_S
+        if (challengeSeconds >= hold) {
             lastReason = RelockReason.NewTempo
             lock(lag, envelopeCount)
         }
@@ -425,9 +438,9 @@ class BeatTracker(
     }
 
     /** Half, double, 3:2 and 4:3 of the locked tempo are the same music, counted another way. */
-    private fun related(heard: Float): Boolean {
+    private fun related(heard: Float, ratios: FloatArray = RATIOS): Boolean {
         val locked = (60.0 / period).toFloat()
-        for (ratio in RATIOS) if (abs(heard - locked * ratio) <= locked * ratio * SAME_TEMPO) return true
+        for (ratio in ratios) if (abs(heard - locked * ratio) <= locked * ratio * SAME_TEMPO) return true
         return false
     }
 
@@ -458,6 +471,7 @@ class BeatTracker(
     private fun estimateLag(n: Int): Float {
         estimateConfidence = 0f
         lockedSupport = 0f
+        octaveSupport = 0f
         linearise(n, forTempo = true)
         val top = minOf(n / 2, correlation.size - 2)
         for (lag in 0..top) {
@@ -501,6 +515,7 @@ class BeatTracker(
                 val index = at.toInt()
                 val value = correlation[index] + (correlation[index + 1] - correlation[index]) * (at - index)
                 lockedSupport = maxOf(lockedSupport, value / energy)
+                if (OCTAVES.any { it == ratio }) octaveSupport = maxOf(octaveSupport, value / energy)
             }
         }
         if (estimateConfidence < ACQUIRE_CONFIDENCE) return 0f
@@ -573,7 +588,7 @@ class BeatTracker(
         if (bestSum < total / 4 * DOWNBEAT_MARGIN) downbeat = 0
 
         val frame = frames - last + beatIndex
-        setClock(frame / frameRate - onsetDelay, downbeat.toLong(), lag / frameRate.toDouble())
+        setClock(frame / frameRate - onsetDelay, downbeat.toLong(), lag / frameRate.toDouble(), heard = true)
         lockCount++
     }
 
@@ -599,11 +614,15 @@ class BeatTracker(
         const val ACQUIRE_CONFIDENCE = 0.2f
         const val CONSISTENT = 0.02f
         val RATIOS = floatArrayOf(1f, 2f, 0.5f, 1.5f, 2f / 3f, 4f / 3f, 0.75f)
+        val OCTAVES = floatArrayOf(1f, 2f, 0.5f)
         const val SAME_TEMPO = 0.03f
 
         const val CHALLENGE_CONFIDENCE = 0.25f
         const val CHALLENGE_MARGIN = 1.3f
         const val SLOW_RELOCK_S = 20f
+        const val WEAK_SUPPORT = 0.25f
+        const val WEAK_RELOCK_S = 6f
+        const val YOUNG_LOCK_S = 45.0
 
         const val SHORT_PROFILE_S = 1.5f
         const val LONG_PROFILE_S = 15f

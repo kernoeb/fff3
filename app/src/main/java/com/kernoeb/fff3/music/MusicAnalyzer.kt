@@ -20,6 +20,8 @@ class MusicFrame(bandCount: Int) {
     var brightness = 0f
     /** Onset strength (spectral flux) of this hop, not normalised. */
     var onset = 0f
+    /** Onset strength for the beat clock: the same flux after each bin is scaled to its recent peak. */
+    var beatOnset = 0f
     /** Loudness before the automatic gain, for silence detection. */
     var rms = 0f
     /** Band loudness before the automatic gain, for the sound profile of a song. */
@@ -42,6 +44,8 @@ class MusicAnalyzer(
     val fftSize: Int = 1024,
     val hopSize: Int = 512,
     bandCount: Int = 24,
+    /** False gives the beat clock the plain flux, to compare both in benchmarks. */
+    private val whiten: Boolean = true,
 ) {
     val frameRate: Float = sampleRate.toFloat() / hopSize
     val frame = MusicFrame(bandCount)
@@ -54,8 +58,11 @@ class MusicAnalyzer(
     private val ring = FloatArray(fftSize)
     private val windowed = FloatArray(fftSize)
     private val magnitudes = FloatArray(fftSize / 2 + 1)
-    private val logMagnitudes = FloatArray(fftSize / 2 + 1)
     private val previousLog = FloatArray(fftSize / 2 + 1)
+    private val previousWhite = FloatArray(fftSize / 2 + 1)
+    private val binPeak = FloatArray(fftSize / 2 + 1)
+    private var framesSeen = 0
+    private val peakDecay = 0.5f.pow(1f / (frameRate * WHITEN_HALF_LIFE_S))
     private val detector = BeatDetector(frameRate)
 
     private val binHz = sampleRate.toFloat() / fftSize
@@ -90,19 +97,40 @@ class MusicAnalyzer(
         fft.magnitudes(windowed, magnitudes)
 
         // Log compression makes the flux follow perceived changes, not just the loudest bins.
+        // The beat clock gets a second flux where each bin is divided by its own recent peak, so
+        // volume and speaker colour do not change its onsets. Bins far below the loudest stay at a floor.
+        var loudest = 0f
+        for (k in 1..fluxEnd) {
+            binPeak[k] = maxOf(magnitudes[k], binPeak[k] * peakDecay)
+            loudest = maxOf(loudest, binPeak[k])
+        }
+        val floor = maxOf(loudest * WHITEN_FLOOR, WHITEN_MIN)
         var flux = 0f
         var kickFlux = 0f
+        var whiteFlux = 0f
+        var whiteKickFlux = 0f
         for (k in 1..fluxEnd) {
             val log = ln(1f + LOG_GAIN * magnitudes[k])
-            logMagnitudes[k] = log
             val rise = log - previousLog[k]
+            previousLog[k] = log
             if (rise > 0f) {
                 flux += rise
                 if (k <= kickEnd) kickFlux += rise
             }
+            val white = ln(1f + LOG_GAIN * magnitudes[k] / maxOf(binPeak[k], floor))
+            val whiteRise = white - previousWhite[k]
+            previousWhite[k] = white
+            if (whiteRise > 0f) {
+                whiteFlux += whiteRise
+                if (k <= kickEnd) whiteKickFlux += whiteRise
+            }
         }
-        logMagnitudes.copyInto(previousLog, 1, 1, fluxEnd + 1)
-        val strength = flux / fluxEnd + KICK_WEIGHT * kickFlux / kickEnd
+        // The first frames rise from nothing: that is the stream starting, not a beat.
+        val primed = framesSeen >= PRIMING_FRAMES
+        if (!primed) framesSeen++
+        val strength = if (primed) flux / fluxEnd + KICK_WEIGHT * kickFlux / kickEnd else 0f
+        val whiteStrength = if (primed) whiteFlux / fluxEnd + KICK_WEIGHT * whiteKickFlux / kickEnd else 0f
+        frame.beatOnset = if (whiten) whiteStrength else strength
 
         val gain = 2f.pow((sensitivity - 0.5f) * 3f)
         frame.level = (levelGain.normalise(rms) * gain).coerceIn(0f, 1f)
@@ -124,6 +152,9 @@ class MusicAnalyzer(
     fun reset() {
         ring.fill(0f)
         previousLog.fill(0f)
+        previousWhite.fill(0f)
+        binPeak.fill(0f)
+        framesSeen = 0
         detector.reset()
     }
 
@@ -166,6 +197,11 @@ class MusicAnalyzer(
 
     private companion object {
         const val LOG_GAIN = 1_000f
+        const val WHITEN_HALF_LIFE_S = 3f
+        const val WHITEN_FLOOR = 1e-2f
+        // About a flat -55 dBFS noise: quieter bins are room or microphone noise.
+        const val WHITEN_MIN = 0.03f
+        const val PRIMING_FRAMES = 2
         const val KICK_WEIGHT = 0.5f
         const val BAND_LOW_HZ = 40f
         const val BAND_HIGH_HZ = 12_000f

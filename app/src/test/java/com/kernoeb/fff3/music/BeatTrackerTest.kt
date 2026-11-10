@@ -81,7 +81,7 @@ class BeatTrackerTest {
             track.samples.copyInto(hop, 0, offset, offset + hop.size)
             offset += hop.size
             val frame = analyzer.process(hop)
-            tracker.process(frame.onset, frame.rms, frame.rawBass, frame.rawMid, frame.rawTreble)
+            tracker.process(frame.beatOnset, frame.rms, frame.rawBass, frame.rawMid, frame.rawTreble)
             result.times += tracker.time
             result.states += tracker.state
             result.bpms += tracker.bpm

@@ -142,7 +142,7 @@ class MusicEngine(
                 val settings = sync.settings.value
                 analyzer.sensitivity = settings.sensitivity
                 val frame = analyzer.process(hop)
-                tracker.process(frame.onset, frame.rms, frame.rawBass, frame.rawMid, frame.rawTreble)
+                tracker.process(frame.beatOnset, frame.rms, frame.rawBass, frame.rawMid, frame.rawTreble)
 
                 val lag = (System.nanoTime() - source.lastSampleNanos) / 1e9
                 captureLag = if (captureLag < 0) lag else captureLag + (lag - captureLag) * CAPTURE_SMOOTHING
