@@ -81,7 +81,7 @@ Each strip accepts only 1 Bluetooth connection at a time. Close other apps that 
 
 Download `fff3-<version>.apk` from the [releases page](https://github.com/kernoeb/fff3/releases) and open it on your phone. You need Android 13 or later.
 
-To build it yourself, you need JDK 17 to 25 and the Android SDK. Then run `./gradlew :app:assembleRelease`. Your build is signed with your own debug key, so it does not install over a release APK.
+To build it yourself, you need JDK 17 to 25 and the Android SDK. Then run `./gradlew :app:assembleRelease` in `android/`. Your build is signed with your own debug key, so it does not install over a release APK.
 
 ### Mac
 

@@ -90,12 +90,13 @@ jobs:
       - name: Test and build
         env:
           FFF3_KEYSTORE_PASSWORD: ${{ secrets.FFF3_KEYSTORE_PASSWORD }}
+        working-directory: android
         run: ./gradlew :app:testDebugUnitTest :app:assembleRelease $GRADLE_VERSION_ARGS $SIGNING_ARGS
 
       - name: Rename APK
         env:
           APK: ${{ steps.version.outputs.apk }}
-        run: mv app/build/outputs/apk/release/app-release.apk "$APK"
+        run: mv android/app/build/outputs/apk/release/app-release.apk "$APK"
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

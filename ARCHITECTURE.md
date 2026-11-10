@@ -6,15 +6,17 @@ Read this before you add a screen or a system feature. Keep the public interface
 
 ## Build
 
+The Android project is in `android/`; run Gradle from there. The Mac app is in `macos/` (see its README).
+
 - JDK 25 (or 17 to 25) for Gradle: `export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home`
 - `./gradlew :app:testDebugUnitTest :app:assembleRelease`
 - `./gradlew :app:installDebug` to put a debug build on the phone
-- Versions live in `gradle/libs.versions.toml`. Material 3 is pinned to `1.5.0-rc01` by hand for the Expressive APIs.
+- Versions live in `android/gradle/libs.versions.toml`. Material 3 is pinned to `1.5.0-rc01` by hand for the Expressive APIs.
 - Release builds use R8 (`optimization { enable = true }`) and are signed with the debug key, so you can sideload them.
 
 ## Packages
 
-All code is in `app/src/main/java/com/kernoeb/fff3/`.
+All code is in `android/app/src/main/java/com/kernoeb/fff3/`.
 
 | Package | What it holds | Android imports |
 |---|---|---|
