@@ -1,6 +1,7 @@
 package com.kernoeb.fff3.music
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.PI
@@ -314,6 +315,43 @@ class BeatTrackerTest {
         val switched = bpms.first { abs(it.second - 150f) < 1f }.first
         assertTrue("150 BPM at $switched s", switched < 20.0)
         assertEquals(RelockReason.NewTempo, tracker.lastReason)
+    }
+
+    @Test
+    fun introTempoGivesWayToTheSongsSteadyBeat() {
+        // A short, clear 160 BPM intro, then a faint 120 BPM beat for the rest of the song. 160 is 4:3 of
+        // 120, so once the lock is old the challenger ignores it, and 120 is never clear enough.
+        val tracker = BeatTracker(93.75f)
+        val bpms = feed(tracker, 90.0, noise = 1.0f) { t -> if (t < 6.0) mapOf(160.0 to 2f) else mapOf(120.0 to 1.3f) }
+        assertEquals(160f, bpms.first { it.first >= 6.0 }.second, 1f)
+        assertEquals(120f, bpms.last().second, 1f)
+        val switched = bpms.first { abs(it.second - 120f) < 1f }.first
+        assertTrue("120 BPM at $switched s", switched < 60.0)
+        assertEquals(RelockReason.NewTempo, tracker.lastReason)
+    }
+
+    @Test
+    fun heardLockKeepsItsTempoWhenAnotherTempoTakesOver() {
+        // 40 s of a steady 120 BPM beat proves the lock. A long section that only hears 160 BPM
+        // must not move it: within a song, 4:3 is the same music counted another way.
+        val tracker = BeatTracker(93.75f)
+        val bpms = feed(tracker, 120.0, noise = 1.0f) { t -> if (t < 40.0) mapOf(120.0 to 1.5f) else mapOf(160.0 to 1f) }
+        assertEquals(120f, bpms.first { it.first >= 39.0 }.second, 1f)
+        assertEquals(120f, bpms.last().second, 1f)
+        assertEquals(1, tracker.lockCount)
+    }
+
+    @Test
+    fun sidesOfAFastPeakAreNotARivalTempo() {
+        // 175 BPM is 32 frames a beat: 2 lags off is only 6 %, still the same peak.
+        val tracker = BeatTracker(93.75f)
+        assertTrue(tracker.relatedLag(34, 32))
+        assertTrue(tracker.relatedLag(30, 32))
+        assertTrue(tracker.relatedLag(43, 32))
+        assertTrue(tracker.relatedLag(66, 64))
+        assertFalse(tracker.relatedLag(36, 32))
+        assertFalse(tracker.relatedLag(80, 32))
+        assertFalse(tracker.relatedLag(56, 64))
     }
 
     @Test

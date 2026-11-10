@@ -31,7 +31,8 @@ enum class RelockReason {
  * - within a song, another tempo must clearly win for [SLOW_RELOCK_S] seconds;
  * - a quick re-lock needs a song boundary: a gap, or a new sound plus a tempo that leaves the beat grid;
  * - while the beat is weak (breakdown, vocals only) the clock coasts and the tempo is frozen;
- * - the first lock waits a few seconds while an unrelated tempo is almost as strong, as in many intros.
+ * - the first lock waits a few seconds while an unrelated tempo is almost as strong, as in many intros;
+ * - a lock the song never backs up, often taken in an intro, gives way to the tempo heard most of the time.
  *
  * Feed it one analysis frame at a time with [process]. Times are seconds of audio since the start,
  * on the same scale as [time]. Allocates nothing after construction.
@@ -109,6 +110,11 @@ class BeatTracker(
     /** True while the lock came from weak readings and no clear reading has backed it yet. */
     private var provisional = false
     private var agreeing = 0
+    /** The latest readings, one per estimate, 0 when none: how often each tempo was heard lately. */
+    private val recent = FloatArray(STEADY_READINGS)
+    private var recentCount = 0
+    /** True once the window heard the locked tempo most of the time: the lock was not a guess. */
+    private var proven = false
     private var challenger = 0f
     private var fastCandidate = 0f
     private var fastSeconds = 0f
@@ -242,6 +248,8 @@ class BeatTracker(
         previousEstimate = 0f
         previousClear = false
         agreeing = 0
+        provisional = false
+        recentCount = 0
         heardBpm = 0f
         displayBpm = 0
         framesSinceEstimate = 0
@@ -270,6 +278,7 @@ class BeatTracker(
         pulse = 1f
         strengthReference = 0f
         provisional = false
+        proven = false
         resetEvidence()
         epoch++
     }
@@ -376,6 +385,8 @@ class BeatTracker(
         val clearTwice = consistent && clear && previousClear
         previousEstimate = estimate
         previousClear = clear
+        recent[recentCount % recent.size] = estimate
+        recentCount++
         when (state) {
             BeatLockState.Acquiring -> {
                 // 2 clear readings in a row lock at once. A weak or contested tempo must
@@ -398,7 +409,7 @@ class BeatTracker(
                 }
                 if (estimate > 0f) refineTempo(estimate)
                 weighChallenger(lag, estimate, now)
-                if (state == BeatLockState.Locked) checkSongChange(now)
+                if (!checkSteadyRival(lag, estimate)) checkSongChange(now)
                 if (state == BeatLockState.Locked && !coasting) checkPhase()
             }
         }
@@ -433,6 +444,36 @@ class BeatTracker(
     }
 
     /**
+     * A lock the window never heard most of the time, often from an intro, gives way to a tempo
+     * heard in most readings for [STEADY_READINGS] estimates while the locked one is almost never heard.
+     * Returns true when it re-locked.
+     */
+    private fun checkSteadyRival(lag: Float, estimate: Float): Boolean {
+        // Taps and ×2 come from the user: only a lock from what was heard can be a wrong guess.
+        if (proven || guessedAt == Double.NEGATIVE_INFINITY) return false
+        val lockedShare = recentShare(bpm)
+        if (lockedShare >= PROVEN_SHARE) {
+            proven = true
+            return false
+        }
+        if (coasting || recentCount < recent.size || estimate <= 0f || related(estimate, OCTAVES)) return false
+        if (lockedShare > STEADY_LOCKED_SHARE || recentShare(estimate) < STEADY_SHARE) return false
+        lastReason = RelockReason.NewTempo
+        lock(lag, envelopeCount)
+        return true
+    }
+
+    /** Share of the recent readings at [bpm], its half or its double. */
+    private fun recentShare(bpm: Float): Float {
+        var count = 0
+        for (i in 0 until minOf(recentCount, recent.size)) {
+            val heard = recent[i]
+            if (heard > 0f && OCTAVES.any { abs(heard - bpm * it) <= bpm * it * SAME_TEMPO }) count++
+        }
+        return count.toFloat() / recent.size
+    }
+
+    /**
      * A new song without a gap: the sound profile changed, and the short window clearly hears
      * an unrelated tempo, for a little while. Re-locks from the new song only.
      */
@@ -442,11 +483,16 @@ class BeatTracker(
             fastSeconds = 0f
             return
         }
+        val longSupport = lockedSupport
         val lag = estimateLag(shortFrames)
+        // The short reading is weighed against the locked tempo in the same short window; the
+        // long-window support stays the one shown in logs.
+        val shortSupport = lockedSupport
+        lockedSupport = longSupport
         val estimate = if (lag > 0f) 60f * frameRate / lag else 0f
         shortBpm = if (estimateConfidence >= ACQUIRE_CONFIDENCE) estimate else 0f
         if (estimate <= 0f || estimateConfidence < FAST_CONFIDENCE || related(estimate) ||
-            estimateConfidence < lockedSupport * FAST_MARGIN
+            estimateConfidence < shortSupport * FAST_MARGIN
         ) {
             fastSeconds = 0f
             return
@@ -461,6 +507,7 @@ class BeatTracker(
             lastReason = RelockReason.SongChange
             // Forget the old song, so the long window does not pull back to its tempo.
             envelopeCount = shortFrames
+            recentCount = 0
             lock(lag, shortFrames)
         }
     }
@@ -538,8 +585,7 @@ class BeatTracker(
         estimateConfidence = (correlation[bestLag] / energy).coerceAtLeast(0f)
         var rival = 0f
         for (lag in minLag..minOf(maxLag, top - 1)) {
-            val ratio = bestLag.toFloat() / lag
-            if (RATIOS.none { abs(ratio - it) < it * RIVAL_TOLERANCE }) rival = maxOf(rival, correlation[lag])
+            if (!relatedLag(lag, bestLag)) rival = maxOf(rival, correlation[lag])
         }
         estimateRival = (rival / energy).coerceAtLeast(0f)
         if (state == BeatLockState.Locked) {
@@ -574,6 +620,13 @@ class BeatTracker(
         }
         return if (sumMultiples > 0) sumPeaks / sumMultiples else bestLag.toFloat()
     }
+
+    /**
+     * True when [lag] is [bestLag] or one of its [RATIOS], give or take. Peaks are a few lags
+     * wide, so at fast tempos their sides must not count as a rival tempo.
+     */
+    internal fun relatedLag(lag: Int, bestLag: Int): Boolean =
+        RATIOS.any { abs(lag - bestLag / it) <= maxOf(bestLag / it * RIVAL_TOLERANCE, RIVAL_MIN_LAGS) }
 
     /** The highest correlation within [radius] lags of [centre]: peaks are sharp and fall between whole lags. */
     private fun peakNear(centre: Int, radius: Int): Float {
@@ -674,6 +727,7 @@ class BeatTracker(
         // An unrelated tempo this close to the best one makes the reading unclear.
         const val RIVAL_SHARE = 0.8f
         const val RIVAL_TOLERANCE = 0.04f
+        const val RIVAL_MIN_LAGS = 2f
         val RATIOS = floatArrayOf(1f, 2f, 0.5f, 1.5f, 2f / 3f, 4f / 3f, 0.75f)
         val OCTAVES = floatArrayOf(1f, 2f, 0.5f)
         const val SAME_TEMPO = 0.03f
@@ -684,6 +738,10 @@ class BeatTracker(
         const val WEAK_SUPPORT = 0.25f
         const val WEAK_RELOCK_S = 6f
         const val YOUNG_LOCK_S = 45.0
+        const val STEADY_READINGS = 60
+        const val PROVEN_SHARE = 0.5f
+        const val STEADY_SHARE = 0.8f
+        const val STEADY_LOCKED_SHARE = 0.05f
 
         const val SHORT_PROFILE_S = 1.5f
         const val LONG_PROFILE_S = 15f
