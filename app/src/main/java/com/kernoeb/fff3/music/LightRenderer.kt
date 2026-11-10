@@ -44,7 +44,7 @@ class LightRenderer(
     private var tempoHue = Float.NaN
     private val energy = SongEnergy()
 
-    /** 0..1, how intense this part of the song is compared with the last 40 seconds. */
+    /** 0..1, how intense this part of the song is compared with the last 2 minutes. */
     val songEnergy: Float get() = energy.value
 
     /** The colour of the last [render], for the visualiser. */

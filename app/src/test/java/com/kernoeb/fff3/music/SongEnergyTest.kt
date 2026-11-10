@@ -27,9 +27,9 @@ class SongEnergyTest {
     @Test
     fun chorusIsBrighterThanVerse() {
         val (verse, chorus, verseAgain) = verseChorusVerse(scale = 1f)
-        assertTrue("chorus $chorus", chorus > 0.9f)
+        assertTrue("chorus $chorus, verse $verse", chorus > 0.85f && chorus > verse + 0.1f)
         assertTrue("verse after chorus $verseAgain", verseAgain < 0.3f)
-        assertTrue("verse $verse", verse > 0.7f)
+        assertTrue("verse $verse", verse in 0.6f..0.9f)
     }
 
     @Test
@@ -42,7 +42,16 @@ class SongEnergyTest {
     @Test
     fun steadySongStaysBright() {
         val energy = SongEnergy()
-        assertTrue(energy.play(30f, 0.08f, 1.5f) > 0.8f)
+        assertTrue(energy.play(20f, 0.08f, 1.5f) > 0.65f)
+        assertTrue(energy.play(45f, 0.08f, 1.5f) > 0.95f)
+    }
+
+    /** A verse after a loud song reads low at once: the history spans songs. */
+    @Test
+    fun nextSongIsComparedWithTheLastOne() {
+        val energy = SongEnergy()
+        energy.play(60f, 0.1f, 2f)
+        assertTrue(energy.play(15f, 0.05f, 1f) < 0.3f)
     }
 
     @Test

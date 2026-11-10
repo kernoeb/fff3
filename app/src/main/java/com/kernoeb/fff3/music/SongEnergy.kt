@@ -5,7 +5,7 @@ import kotlin.math.log10
 
 /**
  * How intense this moment of the song is: 0 for the calmest part heard lately, 1 for the loudest.
- * It compares loudness and attack density over about 2 seconds with the last [HISTORY_SECONDS],
+ * It compares loudness and attack density over about 2 seconds with the last 2 minutes,
  * so a chorus or a drop reads high and a verse or a break reads low, whatever the volume.
  */
 class SongEnergy {
@@ -43,19 +43,23 @@ class SongEnergy {
             high = sorted[((count - 1) * HIGH_PERCENTILE).toInt()]
         }
 
+        // Early on, the loudest part is often still to come: a verse should not read as a chorus.
+        val top = high + HEADROOM_DB * (1f - count.toFloat() / HEADROOM_SECONDS).coerceAtLeast(0f)
         // A song with little dynamics stays near full, rather than stretching small changes.
-        val span = maxOf(high - low, MIN_RANGE_DB)
+        val span = maxOf(top - low, MIN_RANGE_DB)
         val target = when {
             silent -> 0f
             count < MIN_HISTORY -> UNKNOWN
-            else -> ((score - (high - span)) / span).coerceIn(0f, 1f)
+            else -> ((score - (top - span)) / span).coerceIn(0f, 1f)
         }
         value += (target - value) * (1f - exp(-dt / SMOOTHING_S))
         return value
     }
 
     private companion object {
-        const val HISTORY_SECONDS = 40
+        const val HISTORY_SECONDS = 120
+        const val HEADROOM_SECONDS = 60
+        const val HEADROOM_DB = 3f
         const val MIN_HISTORY = 6
         const val WINDOW_S = 1.5f
         const val SMOOTHING_S = 0.6f

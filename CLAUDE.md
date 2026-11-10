@@ -31,6 +31,7 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home
 - Each strip accepts one Bluetooth connection at a time. To test from the Mac, stop the app first: `adb shell am force-stop com.kernoeb.fff3`.
 - The Mac can talk to the strips with Python `bleak` (write to `fff3`, service `fff0`, write without response). The strips advertise as `ELK-BLEDOM ` with a trailing space.
 - Firmware `P10FT-V5.12R2776`. `fff4` sends no notifications, and reading `fff3` returns a stale buffer.
+- To check Beat lock on a real song without the phone: `ffmpeg -i song.mp3 -ac 1 -ar 48000 -f f32le song.f32`, then `FFF3_SONG=song.f32 ./gradlew :app:testDebugUnitTest --tests '*SongReplayTest*' --rerun -i`. It prints tempo, energy and brightness each second. Commas join files into a playlist.
 - Bluetooth write callbacks fire when Android queues the write, not when the strip receives it. The real light delay is measured with the camera: Calibrate light delay, from strip settings or the music screen. Logs: `adb logcat -s fff3-calibrate`.
 
 ## Code rules
