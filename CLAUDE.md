@@ -15,15 +15,15 @@ Personal Android app to control 2 ELK-BLEDOM LED strips over Bluetooth LE. Kotli
 
 ```sh
 export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home
-./gradlew :app:testDebugUnitTest :app:installDebug
+./gradlew :app:testDebugUnitTest :app:assembleRelease && adb install -r app/build/outputs/apk/release/app-release.apk
 ```
 
-- The user runs the release build. To install it: `./gradlew :app:assembleRelease && adb install -r app/build/outputs/apk/release/app-release.apk`. It is signed with the debug key, so it installs over a debug build and keeps the data. `run-as` does not work on it.
-- A `v*` tag push runs `.github/workflows/release.yml`: it tests, builds and attaches `fff3-<tag>.apk` to the GitHub release. `-PversionName` overrides the version name. Never push a tag unless asked.
+- The user runs the release build. To install it: `./gradlew :app:assembleRelease && adb install -r app/build/outputs/apk/release/app-release.apk`. It is signed with the fff3 key (`fff3.keystore`, `fff3.keystorePassword`, `fff3.keyAlias` in `~/.gradle/gradle.properties`; keystore in `~/.config/fff3/`). Debug builds use the debug key, so they do not install over it: do not use `installDebug` on the user's phone. `run-as` does not work on it.
+- A `v*` tag push runs `.github/workflows/release.yml`: it tests, builds and attaches `fff3-<tag>.apk` to the GitHub release. `-PversionName` overrides the version name. It signs with the `FFF3_KEYSTORE_BASE64` and `FFF3_KEYSTORE_PASSWORD` secrets. Never push a tag unless asked.
 - Release lint (`lintVital`) is off because lint 9.5 crashes on some Compose files. Run `./gradlew :app:lintDebug` by hand if you want lint.
 - Check Gradle's real exit code before committing. A pipe such as `./gradlew … | tail` hides failures, and a broken merge was committed once this way.
 - The default JDK on this Mac is too new for Gradle. Always set `JAVA_HOME` as above.
-- The phone is connected over adb. Installing debug builds is allowed at any time. Check UI changes with a screenshot: `adb exec-out screencap -p > <scratchpad>/name.png`.
+- The phone is connected over adb. Installing release builds with `adb install -r` is allowed at any time. Never uninstall the app: that wipes the user's strips and calibrations. Check UI changes with a screenshot: `adb exec-out screencap -p > <scratchpad>/name.png`.
 - Never tap Forget, Delete or the system audio capture consent on the user's behalf.
 - Logs: `adb logcat --pid="$(adb shell pidof com.kernoeb.fff3)"`, and `adb logcat -s fff3-beat` for Beat lock.
 

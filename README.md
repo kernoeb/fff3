@@ -79,7 +79,15 @@ To build and install the release version:
 2. Run the unit tests: `./gradlew :app:testDebugUnitTest`
 3. Build and install: `./gradlew :app:assembleRelease && adb install -r app/build/outputs/apk/release/app-release.apk`
 
-The release build is signed with the debug key. It installs over a debug build and keeps your data.
+Release builds are signed with the fff3 key. Gradle finds it through 3 properties in `~/.gradle/gradle.properties`, outside the repo:
+
+- `fff3.keystore`: the path to the keystore
+- `fff3.keystorePassword`: its password
+- `fff3.keyAlias`: `fff3`
+
+Without these properties, release builds use the debug key. Android then refuses them as an update to an installed fff3.
+
+Keep a backup of the keystore and its password. If you lose them, you cannot update the app: you must uninstall it and lose its data.
 
 ## Releases
 
@@ -90,13 +98,9 @@ GitHub builds the release APK for you when you push a version tag. To cut a rele
 
 The workflow runs the unit tests, then builds the APK. The tag sets the version name, without the `v`. It attaches the APK to the GitHub release as `fff3-v0.2.0.apk`, and creates the release if it does not exist. You can also publish a release on GitHub, and the APK is added to it.
 
-The APK must be signed with the same key as your local builds, or it will not install over your app. Store your debug key once as a repository secret:
+The workflow signs the APK with the fff3 key, from 2 repository secrets: `FFF3_KEYSTORE_BASE64` and `FFF3_KEYSTORE_PASSWORD`. So a GitHub APK installs over a local build and keeps your data.
 
-```sh
-base64 -i ~/.android/debug.keystore | gh secret set DEBUG_KEYSTORE_BASE64 -R kernoeb/fff3
-```
-
-Without this secret, the workflow still builds the APK, but with a new key. You would have to uninstall the app first and lose your strips, groups and calibrations. The run summary warns you when this happens.
+Without these secrets, the workflow still builds the APK, but with a new key, and it will not install over your app. The run summary warns you when this happens.
 
 ## For developers
 

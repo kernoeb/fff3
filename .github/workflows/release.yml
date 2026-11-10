@@ -70,23 +70,27 @@ jobs:
 
       - name: Restore the signing key
         env:
-          DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
+          FFF3_KEYSTORE_BASE64: ${{ secrets.FFF3_KEYSTORE_BASE64 }}
+          FFF3_KEYSTORE_PASSWORD: ${{ secrets.FFF3_KEYSTORE_PASSWORD }}
         run: |
-          if [ -n "$DEBUG_KEYSTORE_BASE64" ]; then
-            mkdir -p ~/.android
-            echo "$DEBUG_KEYSTORE_BASE64" | base64 --decode > ~/.android/debug.keystore
-            echo "Signed with the debug key from the DEBUG_KEYSTORE_BASE64 secret." >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$FFF3_KEYSTORE_BASE64" ] && [ -n "$FFF3_KEYSTORE_PASSWORD" ]; then
+            keystore="$RUNNER_TEMP/fff3-release.jks"
+            echo "$FFF3_KEYSTORE_BASE64" | base64 --decode > "$keystore"
+            echo "SIGNING_ARGS=-Pfff3.keystore=$keystore" >> "$GITHUB_ENV"
+            echo "Signed with the fff3 release key." >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "::warning::DEBUG_KEYSTORE_BASE64 is not set. This APK is signed with a new debug key."
+            echo "::warning::The fff3 signing secrets are not set. This APK is signed with a new debug key."
             {
               echo "> [!WARNING]"
-              echo "> The \`DEBUG_KEYSTORE_BASE64\` secret is not set, so this APK is signed with a new debug key."
-              echo "> It will not install over a locally built app. To install it, you must uninstall the app first and lose its data."
+              echo "> The \`FFF3_KEYSTORE_BASE64\` and \`FFF3_KEYSTORE_PASSWORD\` secrets are not set, so this APK is signed with a new debug key."
+              echo "> It will not install over the app on your phone."
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Test and build
-        run: ./gradlew :app:testDebugUnitTest :app:assembleRelease $GRADLE_VERSION_ARGS
+        env:
+          ORG_GRADLE_PROJECT_fff3.keystorePassword: ${{ secrets.FFF3_KEYSTORE_PASSWORD }}
+        run: ./gradlew :app:testDebugUnitTest :app:assembleRelease $GRADLE_VERSION_ARGS $SIGNING_ARGS
 
       - name: Rename APK
         env:

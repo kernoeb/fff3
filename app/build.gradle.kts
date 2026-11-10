@@ -35,13 +35,27 @@ android {
         localeFilters += listOf("en", "fr")
     }
 
+    // The fff3 key lives outside the repo: in ~/.gradle/gradle.properties locally, in secrets on GitHub.
+    // Without it, release builds use the debug key, and Android refuses them as an update to fff3.
+    val releaseKeystore = providers.gradleProperty("fff3.keystore").orNull
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = file(releaseKeystore)
+                storePassword = providers.gradleProperty("fff3.keystorePassword").get()
+                keyAlias = providers.gradleProperty("fff3.keyAlias").orNull ?: "fff3"
+                keyPassword = storePassword
+            }
+        }
+    }
+    if (releaseKeystore == null) logger.warn("fff3: no fff3.keystore property, release builds use the debug key")
+
     buildTypes {
         release {
             optimization {
                 enable = true
             }
-            // Personal use, sideloaded: the debug key lets you install release builds directly.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 
