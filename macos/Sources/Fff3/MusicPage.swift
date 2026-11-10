@@ -6,7 +6,7 @@ struct MusicPage: View {
     @Bindable var model: AppModel
     let theme: Theme
     let accent: Color
-    @State private var lightDelay = 50.0
+    @State private var lightDelay = 0.0
     @State private var sensitivity = 0.5
 
     private var settings: Settings { model.settings }

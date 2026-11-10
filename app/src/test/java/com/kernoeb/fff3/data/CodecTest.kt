@@ -81,7 +81,7 @@ class CodecTest {
         val data = AppData(settings = Settings(musicLightDelayMs = 50, lightDelaysMs = mapOf("A" to 3)))
         val bytes = ByteArrayOutputStream().also { AppDataCodec.write(data, it) }.toByteArray()
         assertEquals(data, AppDataCodec.read(ByteArrayInputStream(bytes)))
-        assertEquals(50, Settings().musicLightDelayMs)
+        assertEquals(0, Settings().musicLightDelayMs)
     }
 
     @Test(expected = IOException::class)

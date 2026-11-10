@@ -52,7 +52,7 @@ enum MusicSource: String, Codable, CaseIterable, Sendable {
 struct Settings: Codable, Hashable, Sendable {
     var musicSource = MusicSource.systemAudio
     /// Beat lock fine-tune in milliseconds: positive makes the lights later.
-    var musicLightDelayMs = 50
+    var musicLightDelayMs = 0
     var beatColors = BeatColors.Bars
     var musicStyle = MusicStyle.Pulse
     /// 0...1: higher reacts to quieter sound and softer beats.

@@ -79,7 +79,7 @@ Measured on 10 November 2026 with the Scarlett 2i2 as output, clicks played stra
 | Beat lock before the fix: click played to beat sent, then to light | +100 ms, then about +140 ms |
 | Beat lock after the fix: click played to beat sent, then to light | +13 ms, then about +55 ms |
 
-Beat lock aims at the click plus the light delay setting, +50 ms by default as on Android. Set it to 0 for lights exactly on the click. With a Bluetooth headset the output timing is not tested.
+Beat lock aims at the click plus the light delay setting, which is 0 by default, as on Android. Raise it if the lights look early. With a Bluetooth headset the output timing is not tested.
 
 ## Not ported
 

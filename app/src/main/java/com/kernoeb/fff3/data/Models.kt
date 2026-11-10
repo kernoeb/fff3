@@ -44,7 +44,7 @@ data class Settings(
     val hapticsEnabled: Boolean = true,
     val musicSource: MusicSource = MusicSource.PhoneAudio,
     /** Beat lock fine-tune in milliseconds: positive makes the lights later. */
-    val musicLightDelayMs: Int = 50,
+    val musicLightDelayMs: Int = 0,
     /** Measured time from captured phone audio to sound out of each kind of output. */
     val outputDelaysMs: Map<AudioOutput, Int> = emptyMap(),
     /** Camera-measured time from a colour write to the strip showing it, by strip address. */

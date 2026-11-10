@@ -19,7 +19,7 @@ data class MusicSettings(
     val target: ControlTarget? = null,
     val style: MusicStyle = MusicStyle.Pulse,
     val sensitivity: Float = 0.5f,
-    val lightDelayMs: Int = 50,
+    val lightDelayMs: Int = 0,
     val beatColors: BeatColors = BeatColors.Bars,
 )
 

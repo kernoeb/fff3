@@ -5,7 +5,7 @@ import Fff3Core
 struct MusicSettings: Sendable {
     var style = MusicStyle.Pulse
     var sensitivity: Float = 0.5
-    var lightDelayMs = 50
+    var lightDelayMs = 0
     var beatColors = BeatColors.Bars
 }
 
