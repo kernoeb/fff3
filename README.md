@@ -76,3 +76,7 @@ To build it yourself, you need JDK 17 to 25 and the Android SDK. Then run `./gra
 Read [CLAUDE.md](CLAUDE.md) and [ARCHITECTURE.md](ARCHITECTURE.md) before you change code. They cover decisions already made, the build, releases, signing and the tools to test Beat lock on real songs.
 
 The byte protocol was worked out from the existing app and from live tests on the strips. The full notes are kept outside this repo.
+
+## Licence
+
+fff3 is under the [MIT licence](LICENSE).
