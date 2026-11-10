@@ -116,6 +116,8 @@ class BeatTracker(
     /** True once the window heard the locked tempo most of the time: the lock was not a guess. */
     private var proven = false
     private var challenger = 0f
+    /** The highest [octaveSupport] since the lock: a guess from an intro fades once the song starts. */
+    private var peakSupport = 0f
     private var fastCandidate = 0f
     private var fastSeconds = 0f
 
@@ -279,6 +281,7 @@ class BeatTracker(
         strengthReference = 0f
         provisional = false
         proven = false
+        peakSupport = 0f
         resetEvidence()
         epoch++
     }
@@ -417,31 +420,44 @@ class BeatTracker(
 
     /**
      * Within a song: another tempo must clearly beat the locked one for a long time. Soon after a
-     * lock from what was heard, a tempo at 3:2 or 4:3 can also win, since the lock may be a guess.
-     * Later it cannot, so a breakdown does not move the beat.
+     * lock from what was heard, a tempo at 3:2 or 4:3 can also win, since the lock may be a guess,
+     * and sooner once the locked tempo fades, as when an intro ends. Later it cannot, so a
+     * breakdown does not move the beat.
      */
     private fun weighChallenger(lag: Float, estimate: Float, now: Double) {
-        if (estimate <= 0f || estimateConfidence < CHALLENGE_CONFIDENCE) return
         val young = now - guessedAt < YOUNG_LOCK_S
+        if (young) peakSupport = maxOf(peakSupport, octaveSupport)
+        if (estimate <= 0f || estimateConfidence < CHALLENGE_CONFIDENCE) return
         val support = if (young) octaveSupport else lockedSupport
-        if (related(estimate, if (young) OCTAVES else RATIOS) || estimateConfidence < support * CHALLENGE_MARGIN) {
+        val faded = young && octaveSupport < peakSupport * FADED_SHARE && related(estimate, RATIOS)
+        val margin = if (faded) FADED_MARGIN else CHALLENGE_MARGIN
+        if (related(estimate, if (young) OCTAVES else RATIOS) || estimateConfidence < support * margin) {
             challengeSeconds = 0f
             challenger = 0f
             return
         }
-        if (challenger > 0f && abs(estimate - challenger) < challenger * CONSISTENT) {
+        // A young lock's challenger often comes in turn at half and double speed: it is one tempo.
+        val same = challenger > 0f && (near(estimate, challenger) ||
+            young && (near(estimate, 2 * challenger) || near(estimate, challenger / 2)))
+        if (same) {
             challengeSeconds += ESTIMATE_EVERY_S
         } else {
             challenger = estimate
             challengeSeconds = ESTIMATE_EVERY_S
         }
         // A young lock the window barely hears was likely a wrong guess: it yields sooner.
-        val hold = if (young && support < WEAK_SUPPORT) WEAK_RELOCK_S else SLOW_RELOCK_S
+        val hold = when {
+            young && support < WEAK_SUPPORT -> WEAK_RELOCK_S
+            faded -> FADED_RELOCK_S
+            else -> SLOW_RELOCK_S
+        }
         if (challengeSeconds >= hold) {
             lastReason = RelockReason.NewTempo
             lock(lag, envelopeCount)
         }
     }
+
+    private fun near(heard: Float, target: Float): Boolean = abs(heard - target) < target * CONSISTENT
 
     /**
      * A lock the window never heard most of the time, often from an intro, gives way to a tempo
@@ -738,6 +754,10 @@ class BeatTracker(
         const val WEAK_SUPPORT = 0.25f
         const val WEAK_RELOCK_S = 6f
         const val YOUNG_LOCK_S = 45.0
+        // The locked tempo has lost 40% of its best support since the lock.
+        const val FADED_SHARE = 0.6f
+        const val FADED_MARGIN = 1.1f
+        const val FADED_RELOCK_S = 8f
         const val STEADY_READINGS = 60
         const val PROVEN_SHARE = 0.5f
         const val STEADY_SHARE = 0.8f

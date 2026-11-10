@@ -331,6 +331,36 @@ class BeatTrackerTest {
     }
 
     @Test
+    fun fadedIntroTempoSoonGivesWayToARelatedBeat() {
+        // A clear 112.5 BPM intro locks, then the song plays 168.75 BPM, 3:2 of it, with loose timing.
+        // Once the intro tempo fades, the song's beat wins in about 20 s. Without that rule, the
+        // lock is heard too well for the young-lock challenger and stays wrong past 60 s.
+        val tracker = BeatTracker(93.75f)
+        val random = Random(3)
+        val songBeats = mutableSetOf<Int>()
+        var at = 10 * 93.75
+        while (at < 60 * 93.75) {
+            songBeats += Math.round(at).toInt()
+            at += 93.75 * 60 / 168.75 + random.nextDouble(-1.0, 1.0) * 0.85
+        }
+        var introBpm = 0f
+        var switched = Double.NaN
+        for (frame in 0 until 60 * 94) {
+            var strength = random.nextFloat() * 0.5f
+            if (frame < 10 * 93.75 && frame % 50 == 0) strength += 2f
+            if (frame in songBeats) strength += 1f
+            tracker.process(strength, 0.1f)
+            if (frame == 10 * 94) introBpm = tracker.bpm
+            val song = abs(tracker.bpm - 168.75f) < 5f || abs(tracker.bpm - 84.4f) < 2.5f
+            if (switched.isNaN() && song) switched = tracker.time
+        }
+        assertEquals(112.5f, introBpm, 1f)
+        assertTrue("song tempo at $switched s", switched < 35.0)
+        assertEquals(RelockReason.NewTempo, tracker.lastReason)
+        assertEquals(2, tracker.lockCount)
+    }
+
+    @Test
     fun heardLockKeepsItsTempoWhenAnotherTempoTakesOver() {
         // 40 s of a steady 120 BPM beat proves the lock. A long section that only hears 160 BPM
         // must not move it: within a song, 4:3 is the same music counted another way.
