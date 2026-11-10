@@ -46,6 +46,7 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home
 
 ## Code rules
 
+- Until the repo is public, the app data format stays at version 1: change its layout in place, with no code for older versions, then uninstall and reinstall the app (ask the user first, it wipes their strips). Once public, follow the versioning rule at the top of `BinaryCodec.kt`.
 - `protocol/` has no Android imports and every frame has a unit test with its exact hex.
 - Make sure a new test can fail: break the expected value once, see it fail, then revert.
 - Code comments: simple English, explain why, 3 lines at most, no banners.

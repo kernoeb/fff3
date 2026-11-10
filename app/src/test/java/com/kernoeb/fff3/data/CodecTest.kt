@@ -84,28 +84,6 @@ class CodecTest {
         assertEquals(50, Settings().musicLightDelayMs)
     }
 
-    @Test
-    fun version1FileKeepsItsSettingsAndDefaultsTheMusicStyle() {
-        val bytes = ByteArrayOutputStream().also { output ->
-            java.io.DataOutputStream(output).apply {
-                writeInt(1)
-                repeat(3) { writeInt(0) }
-                writeBoolean(false)
-                writeBoolean(true)
-                writeUTF(MusicSource.Microphone.name)
-                writeInt(-20)
-                writeInt(0)
-                writeInt(0)
-                writeUTF(BeatColors.Tempo.name)
-            }
-        }.toByteArray()
-        val settings = AppDataCodec.read(ByteArrayInputStream(bytes)).settings
-        assertEquals(
-            Settings(accentFollowsStrip = false, musicSource = MusicSource.Microphone, musicLightDelayMs = -20, beatColors = BeatColors.Tempo),
-            settings,
-        )
-    }
-
     @Test(expected = IOException::class)
     fun unknownVersionIsRejected() {
         AppDataCodec.read(ByteArrayInputStream(byteArrayOf(0, 0, 0, 99)))
