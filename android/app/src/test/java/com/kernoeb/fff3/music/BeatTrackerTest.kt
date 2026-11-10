@@ -363,6 +363,25 @@ class BeatTrackerTest {
     }
 
     @Test
+    fun introTempoGivesWayToASteadyBeatHeardInPatches() {
+        // As above, but the song's 120 BPM beat comes and goes, 12 s on and 12 s of noise, as in a quiet
+        // song. Half the readings hear no tempo, but those that hear one almost all hear 120.
+        val tracker = BeatTracker(93.75f)
+        val bpms = feed(tracker, 120.0, noise = 1.0f) { t ->
+            when {
+                t < 6.0 -> mapOf(160.0 to 2f)
+                (t - 6.0) % 24.0 < 12.0 -> mapOf(120.0 to 1.3f)
+                else -> emptyMap()
+            }
+        }
+        assertEquals(160f, bpms.first { it.first >= 6.0 }.second, 1f)
+        val switched = bpms.firstOrNull { abs(it.second - 120f) < 1f }?.first
+        assertTrue("120 BPM at $switched s", switched != null && switched < 60.0)
+        assertEquals(120f, bpms.last().second, 1f)
+        assertEquals(RelockReason.NewTempo, tracker.lastReason)
+    }
+
+    @Test
     fun fadedIntroTempoSoonGivesWayToARelatedBeat() {
         // A clear 112.5 BPM intro locks, then the song plays 168.75 BPM, 3:2 of it, with loose timing.
         // Once the intro tempo fades, the song's beat wins in about 20 s. Without that rule, the

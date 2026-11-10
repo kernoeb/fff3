@@ -450,8 +450,8 @@ public final class BeatTracker {
     private func near(_ heard: Float, _ target: Float) -> Bool { abs(heard - target) < target * C.consistent }
 
     /// A lock the window never heard most of the time, often from an intro, gives way to a tempo
-    /// heard in most readings for STEADY_READINGS estimates while the locked one is almost never heard.
-    /// Returns true when it re-locked.
+    /// heard in most readings that hear one, over STEADY_READINGS estimates, while the locked one
+    /// is almost never heard. Returns true when it re-locked.
     private func checkSteadyRival(_ lag: Float, _ estimate: Float) -> Bool {
         // Taps and ×2 come from the user: only a lock from what was heard can be a wrong guess.
         if proven || guessedAt == -Double.infinity { return false }
@@ -461,7 +461,9 @@ public final class BeatTracker {
             return false
         }
         if coasting || recentCount < recent.count || estimate <= 0 || related(estimate, C.octaves) { return false }
-        if lockedShare > C.steadyLockedShare || recentShare(estimate) < C.steadyShare { return false }
+        // Quiet songs and vocal parts give readings with no tempo: they prove nothing either way.
+        let heard = heardShare()
+        if lockedShare > C.steadyLockedShare || heard < C.steadyHeard || recentShare(estimate) < C.steadyShare * heard { return false }
         lastReason = .NewTempo
         lock(lag, envelopeCount)
         return true
@@ -488,6 +490,13 @@ public final class BeatTracker {
             let heard = recent[i]
             if heard > 0 && C.octaves.contains(where: { abs(heard - bpm * $0) <= bpm * $0 * C.sameTempo }) { count += 1 }
         }
+        return Float(count) / Float(recent.count)
+    }
+
+    /// Share of the recent readings that heard a tempo at all.
+    private func heardShare() -> Float {
+        var count = 0
+        for i in 0..<min(recentCount, recent.count) where recent[i] > 0 { count += 1 }
         return Float(count) / Float(recent.count)
     }
 
@@ -764,6 +773,8 @@ public final class BeatTracker {
         static let steadyReadings = 60
         static let provenShare: Float = 0.5
         static let steadyShare: Float = 0.8
+        // The window must hear some tempo in at least a quarter of the readings, 7.5 s of 30.
+        static let steadyHeard: Float = 0.25
         static let steadyLockedShare: Float = 0.05
 
         static let shortProfileS: Float = 1.5

@@ -475,8 +475,8 @@ class BeatTracker(
 
     /**
      * A lock the window never heard most of the time, often from an intro, gives way to a tempo
-     * heard in most readings for [STEADY_READINGS] estimates while the locked one is almost never heard.
-     * Returns true when it re-locked.
+     * heard in most readings that hear one, over [STEADY_READINGS] estimates, while the locked one
+     * is almost never heard. Returns true when it re-locked.
      */
     private fun checkSteadyRival(lag: Float, estimate: Float): Boolean {
         // Taps and ×2 come from the user: only a lock from what was heard can be a wrong guess.
@@ -487,7 +487,9 @@ class BeatTracker(
             return false
         }
         if (coasting || recentCount < recent.size || estimate <= 0f || related(estimate, OCTAVES)) return false
-        if (lockedShare > STEADY_LOCKED_SHARE || recentShare(estimate) < STEADY_SHARE) return false
+        // Quiet songs and vocal parts give readings with no tempo: they prove nothing either way.
+        val heard = heardShare()
+        if (lockedShare > STEADY_LOCKED_SHARE || heard < STEADY_HEARD || recentShare(estimate) < STEADY_SHARE * heard) return false
         lastReason = RelockReason.NewTempo
         lock(lag, envelopeCount)
         return true
@@ -514,6 +516,13 @@ class BeatTracker(
             val heard = recent[i]
             if (heard > 0f && OCTAVES.any { abs(heard - bpm * it) <= bpm * it * SAME_TEMPO }) count++
         }
+        return count.toFloat() / recent.size
+    }
+
+    /** Share of the recent readings that heard a tempo at all. */
+    private fun heardShare(): Float {
+        var count = 0
+        for (i in 0 until minOf(recentCount, recent.size)) if (recent[i] > 0f) count++
         return count.toFloat() / recent.size
     }
 
@@ -794,6 +803,8 @@ class BeatTracker(
         const val STEADY_READINGS = 60
         const val PROVEN_SHARE = 0.5f
         const val STEADY_SHARE = 0.8f
+        // The window must hear some tempo in at least a quarter of the readings, 7.5 s of 30.
+        const val STEADY_HEARD = 0.25f
         const val STEADY_LOCKED_SHARE = 0.05f
 
         const val SHORT_PROFILE_S = 1.5f
