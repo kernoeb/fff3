@@ -257,6 +257,88 @@ class BeatTrackerTest {
         assertTrue(run.states.all { it == BeatLockState.Acquiring })
     }
 
+    /**
+     * Feeds the tracker an onset signal directly: a one-frame pulse on each beat of every tempo in
+     * [pulses] (tempo to strength), plus random noise up to [noise]. Returns (time, bpm) after each frame.
+     */
+    private fun feed(
+        tracker: BeatTracker,
+        seconds: Double,
+        noise: Float,
+        pulses: (Double) -> Map<Double, Float>,
+    ): List<Pair<Double, Float>> {
+        val random = Random(7)
+        val frameRate = 93.75
+        val out = mutableListOf<Pair<Double, Float>>()
+        for (frame in 0 until (seconds * frameRate).toInt()) {
+            val t = frame / frameRate
+            var strength = random.nextFloat() * noise
+            for ((bpm, level) in pulses(t)) {
+                val beatFrames = frameRate * 60.0 / bpm
+                if (frame % beatFrames < 1.0) strength += level
+            }
+            tracker.process(strength, 0.1f)
+            out += tracker.time to tracker.bpm
+        }
+        return out
+    }
+
+    @Test
+    fun weakButSteadyBeatLocks() {
+        // Every reading is below the quick-lock confidence, but they all agree.
+        val tracker = BeatTracker(93.75f)
+        val bpms = feed(tracker, 20.0, noise = 1.0f) { mapOf(120.0 to 1f) }
+        assertTrue("heard confidence ${tracker.heardConfidence}", tracker.heardConfidence < 0.2f)
+        assertEquals(BeatLockState.Locked, tracker.state)
+        assertEquals(120f, bpms.last().second, 1f)
+        assertEquals(1, tracker.lockCount)
+    }
+
+    @Test
+    fun introWithTwoTemposWaitsForTheBeat() {
+        // An intro where a 144 BPM figure is a little stronger than the 120 BPM beat.
+        val tracker = BeatTracker(93.75f)
+        val bpms = feed(tracker, 25.0, noise = 0.3f) { t -> if (t < 5.0) mapOf(144.0 to 1f, 120.0 to 0.9f) else mapOf(120.0 to 1f) }
+        val first = bpms.first { it.second > 0f }
+        assertEquals("first lock at ${first.first} s", 120f, first.second, 1f)
+        assertEquals(1, tracker.lockCount)
+    }
+
+    @Test
+    fun weakLockGivesWayToAClearBeat() {
+        // A faint 120 BPM pulse locks from weak readings; then a clear 150 BPM beat starts.
+        // Without the give-way rule, the young-lock challenger takes until about 22 s.
+        val tracker = BeatTracker(93.75f)
+        val bpms = feed(tracker, 30.0, noise = 1.0f) { t -> if (t < 14.0) mapOf(120.0 to 1f) else mapOf(150.0 to 3f) }
+        assertEquals(120f, bpms.first { it.first >= 13.0 }.second, 1f)
+        val switched = bpms.first { abs(it.second - 150f) < 1f }.first
+        assertTrue("150 BPM at $switched s", switched < 20.0)
+        assertEquals(RelockReason.NewTempo, tracker.lastReason)
+    }
+
+    @Test
+    fun syncopatedHitsDoNotPullTheBeatLate() {
+        // 112.5 BPM is exactly 50 frames a beat. Every other beat, a louder hit comes 7 frames
+        // (75 ms) late. The per-beat loop alone sits about 55 ms late; the window's grid pulls it back.
+        val tracker = BeatTracker(93.75f)
+        val random = Random(7)
+        val errors = mutableListOf<Double>()
+        for (frame in 0 until 20 * 94) {
+            var strength = random.nextFloat() * 0.1f
+            if (frame % 50 == 0) strength += 1f
+            if (frame % 100 == 7) strength += 1.5f
+            tracker.process(strength, 0.1f)
+            val t = tracker.time
+            if (frame % 50 == 0 && t > 12.0) {
+                val beats = tracker.beatsAt(t)
+                errors += abs(beats - Math.round(beats)) * tracker.period
+            }
+        }
+        assertEquals(112.5f, tracker.bpm, 1f)
+        val median = errors.sorted()[errors.size / 2]
+        assertTrue("median phase error ${median * 1000} ms", median < 0.040)
+    }
+
     @Test
     fun steadyToneDoesNotLock() {
         val samples = FloatArray(sampleRate * 10) { (0.3 * sin(2 * PI * 440 * it / sampleRate)).toFloat() }

@@ -30,7 +30,8 @@ enum class RelockReason {
  * - half, double, 3:2 and 4:3 readings are the same tempo, never a change;
  * - within a song, another tempo must clearly win for [SLOW_RELOCK_S] seconds;
  * - a quick re-lock needs a song boundary: a gap, or a new sound plus a tempo that leaves the beat grid;
- * - while the beat is weak (breakdown, vocals only) the clock coasts and the tempo is frozen.
+ * - while the beat is weak (breakdown, vocals only) the clock coasts and the tempo is frozen;
+ * - the first lock waits a few seconds while an unrelated tempo is almost as strong, as in many intros.
  *
  * Feed it one analysis frame at a time with [process]. Times are seconds of audio since the start,
  * on the same scale as [time]. Allocates nothing after construction.
@@ -49,7 +50,8 @@ class BeatTracker(
     private val minLag = floor(frameRate * 60f / MAX_BPM).toInt()
     private val maxLag = ceil(frameRate * 60f / MIN_BPM).toInt()
     private val correlation = FloatArray(minOf(envelope.size / 2, 4 * maxLag + 8) + 2)
-    private val phaseScores = FloatArray(maxLag + 2)
+    // Taps and ×2 can set a clock slower than MIN_BPM, and the phase check combs at that period.
+    private val phaseScores = FloatArray(ceil(frameRate * 60.0 / CLOCK_MIN_BPM).toInt() + 2)
 
     private var frames = 0L
     private var framesSinceEstimate = 0
@@ -93,6 +95,8 @@ class BeatTracker(
         private set
 
     private var estimateConfidence = 0f
+    /** The strongest tempo unrelated to the estimate, on the same scale as [estimateConfidence]. */
+    private var estimateRival = 0f
     /** How strongly the window hears the locked tempo, 0..1. */
     var lockedSupport = 0f
         private set
@@ -101,6 +105,10 @@ class BeatTracker(
     /** When the clock was last set from what was heard, rather than from taps or ×2. */
     private var guessedAt = Double.NEGATIVE_INFINITY
     private var previousEstimate = 0f
+    private var previousClear = false
+    /** True while the lock came from weak readings and no clear reading has backed it yet. */
+    private var provisional = false
+    private var agreeing = 0
     private var challenger = 0f
     private var fastCandidate = 0f
     private var fastSeconds = 0f
@@ -232,6 +240,8 @@ class BeatTracker(
         envelopeCount = 0
         envelopeIndex = 0
         previousEstimate = 0f
+        previousClear = false
+        agreeing = 0
         heardBpm = 0f
         displayBpm = 0
         framesSinceEstimate = 0
@@ -259,6 +269,7 @@ class BeatTracker(
         displayBpm = (60.0 / newPeriod).roundToInt()
         pulse = 1f
         strengthReference = 0f
+        provisional = false
         resetEvidence()
         epoch++
     }
@@ -358,20 +369,37 @@ class BeatTracker(
     private fun onEstimate(now: Double) {
         val lag = estimateLag(envelopeCount)
         val estimate = if (lag > 0f) 60f * frameRate / lag else 0f
-        heardBpm = estimate
+        heardBpm = if (estimateConfidence >= ACQUIRE_CONFIDENCE) estimate else 0f
         heardConfidence = estimateConfidence
+        val clear = estimateConfidence >= ACQUIRE_CONFIDENCE && estimateRival < RIVAL_SHARE * estimateConfidence
+        val consistent = estimate > 0f && previousEstimate > 0f && abs(estimate - previousEstimate) < previousEstimate * CONSISTENT
+        val clearTwice = consistent && clear && previousClear
+        previousEstimate = estimate
+        previousClear = clear
         when (state) {
             BeatLockState.Acquiring -> {
-                val previous = previousEstimate
-                previousEstimate = if (estimateConfidence >= ACQUIRE_CONFIDENCE) estimate else 0f
-                if (estimate > 0f && previous > 0f && abs(estimate - previous) < previous * CONSISTENT) {
+                // 2 clear readings in a row lock at once. A weak or contested tempo must
+                // come back for [PATIENT_ESTIMATES] readings in a row instead.
+                agreeing = if (consistent) agreeing + 1 else 0
+                if (clearTwice || agreeing + 1 >= PATIENT_ESTIMATES) {
                     lock(lag, envelopeCount)
+                    provisional = !clearTwice
                 }
             }
             BeatLockState.Locked -> {
+                if (provisional && clear) {
+                    // A lock from weak readings gives way to the first clear tempo outside its octaves.
+                    if (related(estimate, OCTAVES)) {
+                        provisional = false
+                    } else if (clearTwice && now - guessedAt < YOUNG_LOCK_S) {
+                        lastReason = RelockReason.NewTempo
+                        lock(lag, envelopeCount)
+                    }
+                }
                 if (estimate > 0f) refineTempo(estimate)
                 weighChallenger(lag, estimate, now)
                 if (state == BeatLockState.Locked) checkSongChange(now)
+                if (state == BeatLockState.Locked && !coasting) checkPhase()
             }
         }
     }
@@ -416,7 +444,7 @@ class BeatTracker(
         }
         val lag = estimateLag(shortFrames)
         val estimate = if (lag > 0f) 60f * frameRate / lag else 0f
-        shortBpm = estimate
+        shortBpm = if (estimateConfidence >= ACQUIRE_CONFIDENCE) estimate else 0f
         if (estimate <= 0f || estimateConfidence < FAST_CONFIDENCE || related(estimate) ||
             estimateConfidence < lockedSupport * FAST_MARGIN
         ) {
@@ -466,10 +494,11 @@ class BeatTracker(
 
     /**
      * The beat period in frames over the newest [n] frames, with a fraction, or 0 when the signal
-     * has no clear tempo. Sets [estimateConfidence] and, while locked, [lockedSupport].
+     * has no clear tempo. Sets [estimateConfidence], [estimateRival] and, while locked, [lockedSupport].
      */
     private fun estimateLag(n: Int): Float {
         estimateConfidence = 0f
+        estimateRival = 0f
         lockedSupport = 0f
         octaveSupport = 0f
         linearise(n, forTempo = true)
@@ -507,6 +536,12 @@ class BeatTracker(
         }
         if (bestLag < 0) return 0f
         estimateConfidence = (correlation[bestLag] / energy).coerceAtLeast(0f)
+        var rival = 0f
+        for (lag in minLag..minOf(maxLag, top - 1)) {
+            val ratio = bestLag.toFloat() / lag
+            if (RATIOS.none { abs(ratio - it) < it * RIVAL_TOLERANCE }) rival = maxOf(rival, correlation[lag])
+        }
+        estimateRival = (rival / energy).coerceAtLeast(0f)
         if (state == BeatLockState.Locked) {
             val lockedLag = period * frameRate
             for (ratio in RATIOS) {
@@ -518,7 +553,8 @@ class BeatTracker(
                 if (OCTAVES.any { it == ratio }) octaveSupport = maxOf(octaveSupport, value / energy)
             }
         }
-        if (estimateConfidence < ACQUIRE_CONFIDENCE) return 0f
+        // Weaker readings are kept: one alone proves nothing, but the same one many times does.
+        if (estimateConfidence < PATIENT_CONFIDENCE) return 0f
 
         // The peaks at 2, 3 and 4 periods give a finer period than the first one alone.
         var sumPeaks = 0f
@@ -546,27 +582,25 @@ class BeatTracker(
         return best
     }
 
+    /**
+     * Nudges the clock towards the beat grid that fits the whole window best. The loop corrects
+     * each beat from the strongest nearby onset, so syncopated hits slowly pull it off the beat.
+     */
+    private fun checkPhase() {
+        val n = envelopeCount
+        linearise(n, forTempo = false)
+        val beatIndex = combBeat((period * frameRate).toFloat(), n)
+        val beats = beatsAt((frames - (n - 1) + beatIndex.toDouble()) / frameRate - onsetDelay)
+        val error = beats - Math.round(beats)
+        // A bigger gap may be an off-beat section: leave it to the loop.
+        if (abs(error) < PHASE_CHECK_RANGE) anchorTime += PHASE_CHECK_GAIN * error * period
+    }
+
     /** Sets the clock from the newest [n] frames: phase from a comb at [lag], bar start from the loudest beat. */
     private fun lock(lag: Float, n: Int) {
         linearise(n, forTempo = false)
         val last = n - 1
-        val candidates = ceil(lag).toInt().coerceAtMost(phaseScores.size)
-        var best = 0
-        for (offset in 0 until candidates) {
-            var sum = 0f
-            var position = (last - offset).toFloat()
-            while (position >= 0f) {
-                sum += sample(position, n)
-                position -= lag
-            }
-            phaseScores[offset] = sum
-            if (sum > phaseScores[best]) best = offset
-        }
-        val before = phaseScores[(best - 1 + candidates) % candidates]
-        val after = phaseScores[(best + 1) % candidates]
-        val curve = before - 2 * phaseScores[best] + after
-        val shift = if (curve < 0f) (0.5f * (before - after) / curve).coerceIn(-0.5f, 0.5f) else 0f
-        val beatIndex = last - best - shift
+        val beatIndex = combBeat(lag, n)
 
         // Bars often start with the loudest beat, so pick the beat of 4 that hits hardest.
         var downbeat = 0
@@ -587,9 +621,31 @@ class BeatTracker(
         }
         if (bestSum < total / 4 * DOWNBEAT_MARGIN) downbeat = 0
 
-        val frame = frames - last + beatIndex
+        val frame = frames - last + beatIndex.toDouble()
         setClock(frame / frameRate - onsetDelay, downbeat.toLong(), lag / frameRate.toDouble(), heard = true)
         lockCount++
+    }
+
+    /** Where the latest beat sits in the newest [n] linearised frames, from a comb at [lag]. */
+    private fun combBeat(lag: Float, n: Int): Float {
+        val last = n - 1
+        val candidates = ceil(lag).toInt().coerceAtMost(phaseScores.size)
+        var best = 0
+        for (offset in 0 until candidates) {
+            var sum = 0f
+            var position = (last - offset).toFloat()
+            while (position >= 0f) {
+                sum += sample(position, n)
+                position -= lag
+            }
+            phaseScores[offset] = sum
+            if (sum > phaseScores[best]) best = offset
+        }
+        val before = phaseScores[(best - 1 + candidates) % candidates]
+        val after = phaseScores[(best + 1) % candidates]
+        val curve = before - 2 * phaseScores[best] + after
+        val shift = if (curve < 0f) (0.5f * (before - after) / curve).coerceIn(-0.5f, 0.5f) else 0f
+        return last - best - shift
     }
 
     private fun sample(position: Float, n: Int): Float {
@@ -613,6 +669,11 @@ class BeatTracker(
         const val MIN_ENERGY = 0.025f * 0.025f
         const val ACQUIRE_CONFIDENCE = 0.2f
         const val CONSISTENT = 0.02f
+        const val PATIENT_CONFIDENCE = 0.12f
+        const val PATIENT_ESTIMATES = 8
+        // An unrelated tempo this close to the best one makes the reading unclear.
+        const val RIVAL_SHARE = 0.8f
+        const val RIVAL_TOLERANCE = 0.04f
         val RATIOS = floatArrayOf(1f, 2f, 0.5f, 1.5f, 2f / 3f, 4f / 3f, 0.75f)
         val OCTAVES = floatArrayOf(1f, 2f, 0.5f)
         const val SAME_TEMPO = 0.03f
@@ -634,6 +695,8 @@ class BeatTracker(
 
         const val WINDOW_BEATS = 0.2
         const val PHASE_GAIN = 0.3
+        const val PHASE_CHECK_GAIN = 0.3
+        const val PHASE_CHECK_RANGE = 0.25
         const val REFINE_CONFIDENCE = 0.2f
         const val REFINE_GAIN = 0.1
         const val MAX_SHIFT_BEATS = 0.05

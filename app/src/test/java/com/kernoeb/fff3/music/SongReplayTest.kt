@@ -34,7 +34,7 @@ class SongReplayTest {
         var low = 255
         var edges = 0
         var locks = 0
-        println("time bpm state energy peak low beats heard conf support")
+        println("time bpm state energy peak low beats heard conf support challenge")
         while (samples.remaining() >= hop.size) {
             samples.get(hop)
             val frame = analyzer.process(hop)
@@ -55,9 +55,9 @@ class SongReplayTest {
             if (tracker.time >= second + 1) {
                 println(
                     String.format(
-                        Locale.ROOT, "%4d %5d %-9s %.2f %3d %3d %d %5.1f %.2f %.2f",
+                        Locale.ROOT, "%4d %5d %-9s %.2f %3d %3d %d %5.1f %.2f %.2f %4.1f",
                         second, tracker.displayBpm, tracker.state, renderer.songEnergy, peak, low, edges,
-                        tracker.heardBpm, tracker.heardConfidence, tracker.lockedSupport,
+                        tracker.heardBpm, tracker.heardConfidence, tracker.lockedSupport, tracker.challengeSeconds,
                     ),
                 )
                 second++
