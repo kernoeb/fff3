@@ -35,7 +35,7 @@ fff3 saves the last state it sent to each strip. When you open the app again, it
 
 Your strips can follow music from 2 sources:
 
-- phone audio: what your phone plays, such as Spotify or YouTube
+- phone audio: what your phone plays, from apps that allow audio capture
 - microphone: the sound in the room, for a speaker or another device
 
 There are 5 light styles: Pulse, Spectrum, Energy, Calm and Beat lock.
