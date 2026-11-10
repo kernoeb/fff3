@@ -2,6 +2,8 @@
 
 fff3 is a light Android app to control Bluetooth LED strips with ELK-BLEDOM and MELK controllers. It has no ads, no tracking and no internet access. It is for personal use and is not on Google Play.
 
+![The home screen with 2 strips, the colour wheel, and music sync locked on the beat](docs/screenshots.png)
+
 The name comes from the Bluetooth characteristic that every command is written to: `0000fff3-…`.
 
 ## Why it exists
