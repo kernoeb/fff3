@@ -20,8 +20,9 @@ android {
         targetSdk {
             version = release(37)
         }
-        versionCode = 1
-        versionName = "0.1.0"
+        // CI passes -PversionName from the release tag. Local builds keep the defaults.
+        versionCode = providers.gradleProperty("versionCode").orNull?.toInt() ?: 1
+        versionName = providers.gradleProperty("versionName").orNull ?: "0.1.0"
     }
 
     // Library strings ship in about 80 languages. The app is in English, and the user reads French.

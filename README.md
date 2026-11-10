@@ -81,6 +81,23 @@ To build and install the release version:
 
 The release build is signed with the debug key. It installs over a debug build and keeps your data.
 
+## Releases
+
+GitHub builds the release APK for you when you push a version tag. To cut a release:
+
+1. Tag the commit: `git tag v0.2.0`
+2. Push the tag: `git push origin v0.2.0`
+
+The workflow runs the unit tests, then builds the APK. The tag sets the version name, without the `v`. It attaches the APK to the GitHub release as `fff3-v0.2.0.apk`, and creates the release if it does not exist. You can also publish a release on GitHub, and the APK is added to it.
+
+The APK must be signed with the same key as your local builds, or it will not install over your app. Store your debug key once as a repository secret:
+
+```sh
+base64 -i ~/.android/debug.keystore | gh secret set DEBUG_KEYSTORE_BASE64 -R kernoeb/fff3
+```
+
+Without this secret, the workflow still builds the APK, but with a new key. You would have to uninstall the app first and lose your strips, groups and calibrations. The run summary warns you when this happens.
+
 ## For developers
 
 Read these before you change code:

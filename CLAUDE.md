@@ -19,6 +19,7 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home
 ```
 
 - The user runs the release build. To install it: `./gradlew :app:assembleRelease && adb install -r app/build/outputs/apk/release/app-release.apk`. It is signed with the debug key, so it installs over a debug build and keeps the data. `run-as` does not work on it.
+- A `v*` tag push runs `.github/workflows/release.yml`: it tests, builds and attaches `fff3-<tag>.apk` to the GitHub release. `-PversionName` overrides the version name. Never push a tag unless asked.
 - Release lint (`lintVital`) is off because lint 9.5 crashes on some Compose files. Run `./gradlew :app:lintDebug` by hand if you want lint.
 - Check Gradle's real exit code before committing. A pipe such as `./gradlew … | tail` hides failures, and a broken merge was committed once this way.
 - The default JDK on this Mac is too new for Gradle. Always set `JAVA_HOME` as above.

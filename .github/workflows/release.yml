@@ -1,0 +1,124 @@
+name: Release APK
+
+on:
+  push:
+    tags: ["v*"]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A tag push and a release for the same tag can both start a run. Run them one after the other.
+concurrency:
+  group: release-${{ github.event.release.tag_name || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      apk: ${{ steps.version.outputs.apk }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+
+      - name: Install Android SDK 37
+        run: |
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          for pkg in "platforms;android-37.0" "build-tools;36.1.0"; do
+            if [ -d "$ANDROID_HOME/${pkg/;//}" ]; then
+              echo "$pkg is already installed"
+            else
+              yes | "$sdkmanager" --install "$pkg" > /dev/null
+              echo "Installed $pkg"
+            fi
+          done
+
+      - name: Set version from tag
+        id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          REF_NAME: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          case "$EVENT_NAME" in
+            release) tag="$RELEASE_TAG" ;;
+            push) tag="$REF_NAME" ;;
+            *) tag="" ;;
+          esac
+          if [ -n "$tag" ]; then
+            echo "GRADLE_VERSION_ARGS=-PversionName=${tag#v}" >> "$GITHUB_ENV"
+            apk="fff3-$tag.apk"
+          else
+            apk="fff3-${SHA:0:7}.apk"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "apk=$apk" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the signing key
+        env:
+          DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$DEBUG_KEYSTORE_BASE64" ]; then
+            mkdir -p ~/.android
+            echo "$DEBUG_KEYSTORE_BASE64" | base64 --decode > ~/.android/debug.keystore
+            echo "Signed with the debug key from the DEBUG_KEYSTORE_BASE64 secret." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning::DEBUG_KEYSTORE_BASE64 is not set. This APK is signed with a new debug key."
+            {
+              echo "> [!WARNING]"
+              echo "> The \`DEBUG_KEYSTORE_BASE64\` secret is not set, so this APK is signed with a new debug key."
+              echo "> It will not install over a locally built app. To install it, you must uninstall the app first and lose its data."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Test and build
+        run: ./gradlew :app:testDebugUnitTest :app:assembleRelease $GRADLE_VERSION_ARGS
+
+      - name: Rename APK
+        env:
+          APK: ${{ steps.version.outputs.apk }}
+        run: mv app/build/outputs/apk/release/app-release.apk "$APK"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.version.outputs.apk }}
+          path: ${{ steps.version.outputs.apk }}
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    if: needs.build.outputs.tag != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ needs.build.outputs.apk }}
+
+      - name: Attach APK to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.build.outputs.tag }}
+          APK: ${{ needs.build.outputs.apk }}
+        run: |
+          if ! gh release view "$TAG" > /dev/null 2>&1; then
+            gh release create "$TAG" --verify-tag --generate-notes --title "$TAG"
+          fi
+          gh release upload "$TAG" "$APK" --clobber
