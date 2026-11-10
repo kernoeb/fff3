@@ -81,7 +81,7 @@ fun HomeScreen(
     onOpenStripSettings: (address: String) -> Unit,
 ) {
     val viewModel = appViewModel {
-        HomeViewModel(it.repository, it.controller, it.deviceStates, it.bluetooth, it.pairing, it.stripSettings)
+        HomeViewModel(it.repository, it.controller, it.deviceStates, it.bluetooth, it.stripSettings)
     }
     val state by viewModel.state.collectAsStateWithLifecycle()
     var dialog by remember { mutableStateOf<HomeDialog?>(null) }

@@ -12,16 +12,12 @@ data class AppData(
     val settings: Settings = Settings(),
 )
 
-/**
- * A strip you have added. [address] is the Bluetooth MAC address in upper case.
- * [associationId] is set when it was added through the Companion Device Manager.
- */
+/** A strip you have added. [address] is the Bluetooth MAC address in upper case. */
 data class KnownDevice(
     val address: String,
     val advertisedName: String,
     val family: LedFamily,
     val label: String? = null,
-    val associationId: Int? = null,
 ) {
     val displayName: String get() = label?.takeIf { it.isNotBlank() } ?: advertisedName
 }

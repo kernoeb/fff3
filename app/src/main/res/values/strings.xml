@@ -73,13 +73,11 @@
 
 
     <string name="add_title">Add a strip</string>
-    <string name="add_pair_title">Find with Android</string>
-    <string name="add_pair_body">Android searches for nearby strips and asks you to pick one. Location must be on while it searches.</string>
-    <string name="add_pair_button">Find strips</string>
-    <string name="add_pair_unavailable">This phone cannot pair this way. Use the scan below.</string>
-    <string name="add_scan_title">Scan yourself</string>
-    <string name="add_scan_body">Use this if Android does not find your strip.</string>
+    <string name="add_scan_title">Nearby strips</string>
+    <string name="add_scan_body">Strips that are on and close to the phone show up below.</string>
     <string name="add_scan_button">Scan</string>
+    <string name="add_scan_again">Scan again</string>
+    <string name="add_scan_none">No strips found. Make sure the strip has power and no other phone is connected to it, then scan again.</string>
     <string name="add_scan_stop">Stop</string>
     <string name="add_scan_empty">No strips found yet. Make sure the strip has power and no other phone is connected to it.</string>
     <string name="add_already_added">Already added</string>

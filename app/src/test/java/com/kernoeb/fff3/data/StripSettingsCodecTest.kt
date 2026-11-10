@@ -66,14 +66,4 @@ class StripSettingsCodecTest {
         assertEquals("7e 08 82 06 1e 00 00 85 ef", frame)
         assertEquals(schedule, roundTrip(mapOf("A" to StripSettings(turnOn = schedule)))["A"]?.turnOn)
     }
-
-    @Test
-    fun oldAppDataStillReadsWithHapticsOn() {
-        val out = ByteArrayOutputStream()
-        java.io.DataOutputStream(out).apply {
-            writeInt(1); writeInt(0); writeInt(0); writeInt(0); writeBoolean(false)
-        }
-        val data = AppDataCodec.read(ByteArrayInputStream(out.toByteArray()))
-        assertEquals(Settings(accentFollowsStrip = false, hapticsEnabled = true), data.settings)
-    }
 }

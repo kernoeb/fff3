@@ -19,7 +19,7 @@ All code is in `app/src/main/java/com/kernoeb/fff3/`.
 | Package | What it holds | Android imports |
 |---|---|---|
 | `protocol/` | commands, families, byte encoders, effect catalogues | none |
-| `ble/` | links to strips, write queue, controller, pairing, scanner | yes |
+| `ble/` | links to strips, write queue, controller, scanner | yes |
 | `data/` | DataStore files, devices, groups, favourites, last state | yes |
 | `calibrate/` | camera light delay calibration: Camera2 and OpenGL reader, and its pure maths (`LightDelayMath`) | yes, except `LightDelayMath` |
 | `ui/` | theme, navigation, screens and their ViewModels | yes |
@@ -36,7 +36,6 @@ val repository: LedRepository
 val deviceStates: DeviceStateStore
 val bluetooth: BluetoothEnvironment
 val controller: LedController
-val pairing: CompanionPairing
 val scanner: BleScanner
 val appScope: CoroutineScope
 val clockSync: ClockSyncer          // sends ClockSync on each connect; syncedAt by address
@@ -87,7 +86,7 @@ enum class LedFamily { DOM, DOB, MELK, MELK_SCENE
     val hasMic; val hasWireOrder; val hasPixelCount
     fun supports(command: Command): Boolean
     fun encode(command: Command): List<ByteArray>
-    companion object { fun detect(advertisedName: String?): LedFamily?; const val NAME_PATTERN }
+    companion object { fun detect(advertisedName: String?): LedFamily? }
 }
 ```
 
@@ -119,10 +118,10 @@ interface DeviceStateStore {
 - A `Favourite` is a name plus a list of `Command`s, with an optional `family` when it holds effects or scenes. Apply it with `controller.send(target, favourite.commands)`.
 - Files use a hand-written binary format (`BinaryCodec.kt`). To add a field, follow the versioning note at the top of that file, and add it to `CodecTest`.
 
-### Pairing: `ble/CompanionPairing.kt` and `ble/BleScanner.kt`
+### Adding strips: `ble/BleScanner.kt`
 
-- `pairing.start(onSheet, onError)` gives an `IntentSender`. Launch it with `StartIntentSenderForResult`, then `pairing.parseResult(code, data)` returns a `PairedDevice`. Save it with `repository.saveDevice`. See `ui/add/AddDeviceScreen.kt`.
-- `scanner.scan(): Flow<List<ScannedDevice>>` is the fallback. It needs `BLUETOOTH_SCAN`.
+- `scanner.scan(): Flow<List<ScannedDevice>>` lists supported strips nearby, strongest signal first. It needs `BLUETOOTH_SCAN`, declared `neverForLocation`, so it works with Location off.
+- The Add screen starts a scan when it opens and saves the strip you pick with `repository.saveDevice`. See `ui/add/AddDeviceScreen.kt`.
 
 ### Theme: `ui/theme/`
 

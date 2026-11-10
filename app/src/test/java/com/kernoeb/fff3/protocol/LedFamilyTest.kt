@@ -32,16 +32,6 @@ class LedFamilyTest {
     }
 
     @Test
-    fun namePatternAcceptsWhatDetectAccepts() {
-        val regex = Regex(LedFamily.NAME_PATTERN)
-        for (name in listOf("ELK-BLEDOM", "ELK-BLEDOB", "ELK-HR", "CLK-BLEDDM", "MELK-OA", "MELK-OC", "xELK-BLEDOMx")) {
-            assertTrue(name, regex.matches(name))
-            assertTrue(name, LedFamily.detect(name) != null)
-        }
-        assertFalse(regex.matches("LEDDMX-00"))
-    }
-
-    @Test
     fun capabilitiesFilterCommands() {
         assertTrue(LedFamily.DOM.supports(Command.MicEnabled(true)))
         assertFalse(LedFamily.DOB.supports(Command.MicEnabled(true)))

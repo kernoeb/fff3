@@ -2,13 +2,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
-    <uses-feature android:name="android.software.companion_device_setup" android:required="false" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <!-- Connect and write to the strips. Shown to the user as "Nearby devices". -->
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
-    <!-- Only for the fallback scanner, when the Companion Device Manager does not work. -->
+    <!-- Find strips to add. neverForLocation lets the scan work with Location off. -->
     <uses-permission
         android:name="android.permission.BLUETOOTH_SCAN"
         android:usesPermissionFlags="neverForLocation" />

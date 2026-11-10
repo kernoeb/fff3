@@ -1,14 +1,11 @@
 package com.kernoeb.fff3.ui.add
 
-import android.content.Intent
-import android.content.IntentSender
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kernoeb.fff3.ble.BleScanner
 import com.kernoeb.fff3.ble.BluetoothEnvironment
 import com.kernoeb.fff3.ble.BluetoothStatus
-import com.kernoeb.fff3.ble.CompanionPairing
 import com.kernoeb.fff3.ble.ControlTarget
 import com.kernoeb.fff3.ble.LedController
 import com.kernoeb.fff3.ble.ScanFailedException
@@ -16,7 +13,6 @@ import com.kernoeb.fff3.ble.ScannedDevice
 import com.kernoeb.fff3.data.KnownDevice
 import com.kernoeb.fff3.data.LedRepository
 import com.kernoeb.fff3.protocol.Command
-import com.kernoeb.fff3.protocol.LedFamily
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,14 +32,14 @@ sealed interface AddMessage {
     data object ScanPermissionDenied : AddMessage
     data object BluetoothOff : AddMessage
     data class ScanFailed(val code: Int?) : AddMessage
-    data class PairingFailed(val reason: String) : AddMessage
 }
 
 @Immutable
 data class AddDeviceUiState(
-    val pairingAvailable: Boolean = true,
     val bluetooth: BluetoothStatus = BluetoothStatus.Ready,
     val scanning: Boolean = false,
+    /** True once a scan has run, so an empty list means nothing was found. */
+    val scanned: Boolean = false,
     val results: List<ScannedDevice> = emptyList(),
     val known: Map<String, String> = emptyMap(),
     /** Strips added since this screen opened, newest last, with their current names. */
@@ -55,6 +51,7 @@ data class AddDeviceUiState(
 
 private data class LocalState(
     val scanning: Boolean = false,
+    val scanned: Boolean = false,
     val results: List<ScannedDevice> = emptyList(),
     val addedAddresses: List<String> = emptyList(),
     val namingAddress: String? = null,
@@ -64,13 +61,23 @@ private data class LocalState(
 class AddDeviceViewModel(
     private val repository: LedRepository,
     private val controller: LedController,
-    private val pairing: CompanionPairing,
     private val scanner: BleScanner,
     private val bluetooth: BluetoothEnvironment,
 ) : ViewModel() {
 
     private val local = MutableStateFlow(LocalState())
     private var scanJob: Job? = null
+
+    /** A scan was asked for while Bluetooth was off: it starts once Bluetooth is on. */
+    private var scanWhenReady = false
+
+    init {
+        viewModelScope.launch {
+            bluetooth.status.collect { status ->
+                if (status == BluetoothStatus.Ready && scanWhenReady) startScan()
+            }
+        }
+    }
 
     val state: StateFlow<AddDeviceUiState> = combine(
         local,
@@ -79,54 +86,31 @@ class AddDeviceViewModel(
     ) { s, data, status ->
         val byAddress = data.devices.associateBy { it.address }
         AddDeviceUiState(
-            pairingAvailable = pairing.isAvailable,
             bluetooth = status,
             scanning = s.scanning,
+            scanned = s.scanned,
             results = s.results,
             known = data.devices.associate { it.address to it.displayName },
             added = s.addedAddresses.mapNotNull(byAddress::get),
             naming = s.namingAddress?.let(byAddress::get),
             message = s.message,
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AddDeviceUiState(pairingAvailable = pairing.isAvailable))
-
-    fun startPairing(onSheet: (IntentSender) -> Unit) {
-        stopScan()
-        local.update { it.copy(message = null) }
-        pairing.start(
-            onSheet = onSheet,
-            onError = { reason -> local.update { it.copy(message = AddMessage.PairingFailed(reason)) } },
-        )
-    }
-
-    fun onPairingResult(resultCode: Int, data: Intent?) {
-        val paired = pairing.parseResult(resultCode, data) ?: return
-        add(paired.address, paired.name, paired.family, paired.associationId)
-    }
-
-    fun add(device: ScannedDevice) = add(device.address, device.name, device.family, associationId = null)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AddDeviceUiState())
 
     /** Saves the strip at once with a numbered name, so it works even if the user skips naming. */
-    private fun add(address: String, advertisedName: String, family: LedFamily, associationId: Int?) {
+    fun add(scanned: ScannedDevice) {
+        // A running scan slows the new connection and makes the "Flash it" blinks uneven.
+        stopScan()
         viewModelScope.launch {
             val existing = repository.snapshot.filterNotNull().first().devices
-            when (val outcome = addOutcome(address, existing)) {
-                is AddOutcome.AlreadyAdded -> {
-                    // A fresh association from the sheet replaces any old one, so links keep working.
-                    val known = existing.first { it.address.equals(address, ignoreCase = true) }
-                    if (associationId != null && associationId != known.associationId) {
-                        repository.saveDevice(known.copy(associationId = associationId))
-                        known.associationId?.let(pairing::forget)
-                    }
-                    local.update { it.copy(message = AddMessage.AlreadyAdded(outcome.name)) }
-                }
+            when (val outcome = addOutcome(scanned.address, existing)) {
+                is AddOutcome.AlreadyAdded -> local.update { it.copy(message = AddMessage.AlreadyAdded(outcome.name)) }
                 AddOutcome.New -> {
                     val device = KnownDevice(
-                        address = address.uppercase(),
-                        advertisedName = advertisedName,
-                        family = family,
+                        address = scanned.address.uppercase(),
+                        advertisedName = scanned.name,
+                        family = scanned.family,
                         label = suggestStripName(existing),
-                        associationId = associationId,
                     )
                     repository.saveDevice(device)
                     controller.retryNow()
@@ -188,11 +172,13 @@ class AddDeviceViewModel(
 
     private fun startScan() {
         if (scanJob?.isActive == true) return
+        // No message here: the Bluetooth card at the top of the screen already says it is off.
         if (bluetooth.status.value == BluetoothStatus.Off) {
-            local.update { it.copy(message = AddMessage.BluetoothOff) }
+            scanWhenReady = true
             return
         }
-        local.update { it.copy(scanning = true, results = emptyList(), message = null) }
+        scanWhenReady = false
+        local.update { it.copy(scanning = true, scanned = true, results = emptyList(), message = null) }
         scanJob = viewModelScope.launch {
             withTimeoutOrNull(SCAN_DURATION_MS) {
                 scanner.scan()
@@ -203,7 +189,8 @@ class AddDeviceViewModel(
                             is IllegalStateException -> AddMessage.BluetoothOff
                             else -> AddMessage.ScanFailed(null)
                         }
-                        local.update { it.copy(message = message) }
+                        // The scan never ran, so do not claim that nothing was found.
+                        local.update { it.copy(message = message, scanned = false) }
                     }
                     .collect { found -> local.update { it.copy(results = found) } }
             }

@@ -21,7 +21,7 @@ import java.time.DayOfWeek
  */
 object AppDataCodec {
 
-    private const val VERSION = 7
+    private const val VERSION = 1
 
     fun write(data: AppData, output: OutputStream) {
         val out = DataOutputStream(output)
@@ -31,7 +31,6 @@ object AppDataCodec {
             writeUTF(device.advertisedName)
             writeUTF(device.family.name)
             writeNullableUtf(device.label)
-            writeNullableInt(device.associationId)
         }
         out.writeList(data.groups) { group ->
             writeUTF(group.id)
@@ -70,7 +69,6 @@ object AppDataCodec {
                 advertisedName = readUTF(),
                 family = LedFamily.valueOf(readUTF()),
                 label = readNullableUtf(),
-                associationId = readNullableInt(),
             )
         }
         val groups = inp.readList {
@@ -86,17 +84,12 @@ object AppDataCodec {
         }
         val settings = Settings(
             accentFollowsStrip = inp.readBoolean(),
-            hapticsEnabled = if (version >= 2) inp.readBoolean() else true,
-            musicSource = if (version >= 3) MusicSource.valueOf(inp.readUTF()) else MusicSource.PhoneAudio,
-            musicLightDelayMs = when {
-                version >= 6 || version == 4 -> inp.readInt()
-                // Version 5 stored null for a fine-tune the user never moved.
-                version == 5 -> inp.readNullableInt() ?: Settings().musicLightDelayMs
-                else -> Settings().musicLightDelayMs
-            },
-            outputDelaysMs = if (version >= 4) inp.readList { AudioOutput.valueOf(readUTF()) to readInt() }.toMap() else emptyMap(),
-            lightDelaysMs = if (version >= 5) inp.readList { readUTF() to readInt() }.toMap() else emptyMap(),
-            beatColors = if (version >= 7) BeatColors.valueOf(inp.readUTF()) else BeatColors.Bars,
+            hapticsEnabled = inp.readBoolean(),
+            musicSource = MusicSource.valueOf(inp.readUTF()),
+            musicLightDelayMs = inp.readInt(),
+            outputDelaysMs = inp.readList { AudioOutput.valueOf(readUTF()) to readInt() }.toMap(),
+            lightDelaysMs = inp.readList { readUTF() to readInt() }.toMap(),
+            beatColors = BeatColors.valueOf(inp.readUTF()),
         )
         return AppData(devices, groups, favourites, settings)
     }

@@ -20,7 +20,7 @@ data class ScannedDevice(
 class ScanFailedException(val errorCode: Int) : Exception("Bluetooth scan failed with code $errorCode")
 
 /**
- * Fallback for phones where the Companion Device Manager misbehaves.
+ * Finds strips to add, only while the Add screen is open.
  * Needs the `BLUETOOTH_SCAN` permission (declared `neverForLocation`).
  */
 class BleScanner(private val environment: BluetoothEnvironment) {

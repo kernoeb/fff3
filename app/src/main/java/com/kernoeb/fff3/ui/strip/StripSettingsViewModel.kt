@@ -3,7 +3,6 @@ package com.kernoeb.fff3.ui.strip
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kernoeb.fff3.ble.ClockSyncer
-import com.kernoeb.fff3.ble.CompanionPairing
 import com.kernoeb.fff3.ble.ControlTarget
 import com.kernoeb.fff3.ble.LedController
 import com.kernoeb.fff3.data.DeviceStateStore
@@ -48,7 +47,6 @@ class StripSettingsViewModel(
     private val stripSettings: StripSettingsStore,
     private val clockSync: ClockSyncer,
     private val deviceStates: DeviceStateStore,
-    private val pairing: CompanionPairing,
 ) : ViewModel() {
 
     private val target = ControlTarget.Device(address)
@@ -142,11 +140,9 @@ class StripSettingsViewModel(
     /** Same clean-up as a confirmed forget on Home: no undo here. */
     fun forget(onDone: () -> Unit) {
         viewModelScope.launch {
-            val associationId = repository.snapshot.value?.devices?.firstOrNull { it.address == address }?.associationId
             repository.removeDevice(address)
             stripSettings.forget(address)
             deviceStates.forget(address)
-            associationId?.let(pairing::forget)
             onDone()
         }
     }

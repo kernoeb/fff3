@@ -5,7 +5,6 @@ import com.kernoeb.fff3.ble.BleLedController
 import com.kernoeb.fff3.ble.BleScanner
 import com.kernoeb.fff3.ble.BluetoothEnvironment
 import com.kernoeb.fff3.ble.ClockSyncer
-import com.kernoeb.fff3.ble.CompanionPairing
 import com.kernoeb.fff3.ble.FrameWrites
 import com.kernoeb.fff3.ble.LedController
 import com.kernoeb.fff3.ble.WriteLatency
@@ -66,8 +65,6 @@ class AppContainer(context: Context) {
     val clockSync: ClockSyncer by lazy { ClockSyncer(appScope) }
 
     val stripSettings: StripSettingsStore by lazy { DataStoreStripSettingsStore.create(appContext, appScope) }
-
-    val pairing: CompanionPairing by lazy { CompanionPairing(appContext) }
 
     val scanner: BleScanner by lazy { BleScanner(bluetooth) }
 

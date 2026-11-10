@@ -90,8 +90,5 @@ enum class LedFamily(
                 else -> null
             }
         }
-
-        /** Regex for names [detect] accepts. Used by the Companion Device Manager filter. */
-        const val NAME_PATTERN: String = ".*(ELK-BLE|ELK-HR|CLK-BLE|MELK-O).*"
     }
 }

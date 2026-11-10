@@ -5,7 +5,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kernoeb.fff3.ble.BluetoothEnvironment
 import com.kernoeb.fff3.ble.BluetoothStatus
-import com.kernoeb.fff3.ble.CompanionPairing
 import com.kernoeb.fff3.ble.ConnectionState
 import com.kernoeb.fff3.ble.ControlTarget
 import com.kernoeb.fff3.ble.LedController
@@ -76,7 +75,6 @@ class HomeViewModel(
     private val controller: LedController,
     private val deviceStates: DeviceStateStore,
     private val bluetooth: BluetoothEnvironment,
-    private val pairing: CompanionPairing,
     private val stripSettings: StripSettingsStore,
 ) : ViewModel() {
 
@@ -182,7 +180,6 @@ class HomeViewModel(
 
     fun confirmForget(event: HomeEvent.Forgotten) {
         deviceStates.forget(event.device.address)
-        event.device.associationId?.let(pairing::forget)
         viewModelScope.launch { stripSettings.forget(event.device.address) }
     }
 

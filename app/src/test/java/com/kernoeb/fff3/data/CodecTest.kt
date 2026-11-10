@@ -35,7 +35,7 @@ class CodecTest {
     fun appDataRoundTrip() {
         val data = AppData(
             devices = listOf(
-                KnownDevice("BE:FF:20:00:00:01", "ELK-BLEDOM", LedFamily.DOM, label = "Desk", associationId = 3),
+                KnownDevice("BE:FF:20:00:00:01", "ELK-BLEDOM", LedFamily.DOM, label = "Desk"),
                 KnownDevice("BE:FF:20:00:00:02", "MELK-OA10", LedFamily.MELK),
             ),
             groups = listOf(DeviceGroup("g1", "Living room", listOf("BE:FF:20:00:00:01", "BE:FF:20:00:00:02"))),
@@ -75,70 +75,11 @@ class CodecTest {
     }
 
     @Test
-    fun version2FileDefaultsToPhoneAudio() {
-        val bytes = ByteArrayOutputStream().also { output ->
-            java.io.DataOutputStream(output).apply {
-                writeInt(2)
-                repeat(3) { writeInt(0) }
-                writeBoolean(false)
-                writeBoolean(true)
-            }
-        }.toByteArray()
-        val settings = AppDataCodec.read(ByteArrayInputStream(bytes)).settings
-        assertEquals(Settings(accentFollowsStrip = false, musicSource = MusicSource.PhoneAudio), settings)
-    }
-
-    @Test
     fun lightDelayOfFiftyIsKeptAsSaved() {
         val data = AppData(settings = Settings(musicLightDelayMs = 50, lightDelaysMs = mapOf("A" to 3)))
         val bytes = ByteArrayOutputStream().also { AppDataCodec.write(data, it) }.toByteArray()
         assertEquals(data, AppDataCodec.read(ByteArrayInputStream(bytes)))
         assertEquals(50, Settings().musicLightDelayMs)
-    }
-
-    @Test
-    fun version4LightDelayIsKeptAsSaved() {
-        assertEquals(50, oldSettings(version = 4, lightDelayMs = 50).musicLightDelayMs)
-        assertEquals(0, oldSettings(version = 4, lightDelayMs = 0).musicLightDelayMs)
-        assertEquals(-45, oldSettings(version = 4, lightDelayMs = -45).musicLightDelayMs)
-        assertEquals(mapOf(AudioOutput.Wired to 30), oldSettings(version = 4, lightDelayMs = 0).outputDelaysMs)
-        assertEquals(emptyMap<String, Int>(), oldSettings(version = 4, lightDelayMs = 0).lightDelaysMs)
-    }
-
-    @Test
-    fun version5UnsetLightDelayReadsTheDefault() {
-        assertEquals(50, oldSettings(version = 5, lightDelayMs = null).musicLightDelayMs)
-        assertEquals(0, oldSettings(version = 5, lightDelayMs = 0).musicLightDelayMs)
-        assertEquals(mapOf("A" to 16), oldSettings(version = 5, lightDelayMs = null).lightDelaysMs)
-        assertEquals(BeatColors.Bars, oldSettings(version = 5, lightDelayMs = null).beatColors)
-    }
-
-    /** A file as versions 4 and 5 wrote it: version 5 stored the fine-tune as a nullable int. */
-    private fun oldSettings(version: Int, lightDelayMs: Int?): Settings {
-        val bytes = ByteArrayOutputStream().also { output ->
-            java.io.DataOutputStream(output).apply {
-                writeInt(version)
-                repeat(3) { writeInt(0) }
-                writeBoolean(true)
-                writeBoolean(true)
-                writeUTF(MusicSource.Microphone.name)
-                if (version == 4) {
-                    writeInt(checkNotNull(lightDelayMs))
-                } else {
-                    writeBoolean(lightDelayMs != null)
-                    if (lightDelayMs != null) writeInt(lightDelayMs)
-                }
-                writeInt(1)
-                writeUTF(AudioOutput.Wired.name)
-                writeInt(30)
-                if (version == 5) {
-                    writeInt(1)
-                    writeUTF("A")
-                    writeInt(16)
-                }
-            }
-        }.toByteArray()
-        return AppDataCodec.read(ByteArrayInputStream(bytes)).settings
     }
 
     @Test(expected = IOException::class)

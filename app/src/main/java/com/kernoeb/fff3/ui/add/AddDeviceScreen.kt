@@ -5,7 +5,6 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
@@ -34,7 +33,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearWavyProgressIndicator
@@ -57,6 +55,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -80,26 +79,30 @@ import com.kernoeb.fff3.ui.appViewModel
 import com.kernoeb.fff3.ui.common.BluetoothStatusCard
 
 /**
- * Adds strips: the system pairing sheet first, a plain scan as fallback.
+ * Adds strips found by a Bluetooth scan, which starts when the screen opens.
  * After each strip you name it, then add another or go back; the screen stays open in between.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun AddDeviceScreen(onDone: () -> Unit, onBack: () -> Unit) {
     val viewModel = appViewModel {
-        AddDeviceViewModel(it.repository, it.controller, it.pairing, it.scanner, it.bluetooth)
+        AddDeviceViewModel(it.repository, it.controller, it.scanner, it.bluetooth)
     }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
-    val pairingSheet = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
-        viewModel.onPairingResult(result.resultCode, result.data)
-    }
     val scanPermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
         viewModel.onScanPermissionResult(grants.values.all { it })
     }
-    val startPairing = {
-        viewModel.startPairing { sender -> pairingSheet.launch(IntentSenderRequest.Builder(sender).build()) }
+    // Asking again is silent once granted, so this is also how a scan starts.
+    val scan = { scanPermissions.launch(arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)) }
+    // Saved so turning the phone does not start a new scan.
+    var autoScanned by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (!autoScanned) {
+            autoScanned = true
+            scan()
+        }
     }
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -128,8 +131,8 @@ fun AddDeviceScreen(onDone: () -> Unit, onBack: () -> Unit) {
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         OutlinedButton(
-                            onClick = startPairing,
-                            enabled = state.pairingAvailable,
+                            onClick = scan,
+                            enabled = !state.scanning && state.bluetooth != BluetoothStatus.Off,
                             modifier = Modifier.weight(1f).height(56.dp),
                         ) { Text(stringResource(R.string.add_another)) }
                         Button(onClick = onDone, modifier = Modifier.weight(1f).height(56.dp)) {
@@ -165,20 +168,8 @@ fun AddDeviceScreen(onDone: () -> Unit, onBack: () -> Unit) {
 
             if (state.added.isNotEmpty()) AddedList(state.added, onRename = { viewModel.renameRequest(it) })
 
-            PairCard(
-                available = state.pairingAvailable,
-                bluetoothReady = state.bluetooth != BluetoothStatus.Off,
-                onStart = startPairing,
-            )
-
-            ScanSection(
-                state = state,
-                onScan = {
-                    scanPermissions.launch(arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT))
-                },
-                onStop = viewModel::stopScan,
-                onAdd = viewModel::add,
-            )
+            ScanCard(state = state, onScan = scan, onStop = viewModel::stopScan)
+            ScanResults(state = state, onAdd = viewModel::add)
             Spacer(Modifier.height(24.dp))
         }
     }
@@ -195,7 +186,7 @@ fun AddDeviceScreen(onDone: () -> Unit, onBack: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun PairCard(available: Boolean, bluetoothReady: Boolean, onStart: () -> Unit) {
+private fun ScanCard(state: AddDeviceUiState, onScan: () -> Unit, onStop: () -> Unit) {
     Card(
         shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
@@ -216,56 +207,52 @@ private fun PairCard(available: Boolean, bluetoothReady: Boolean, onStart: () ->
                 )
             }
             Spacer(Modifier.height(16.dp))
-            Text(stringResource(R.string.add_pair_title), style = MaterialTheme.typography.headlineSmall)
+            Text(stringResource(R.string.add_scan_title), style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(8.dp))
+            val body = when {
+                state.scanning && state.results.isEmpty() -> R.string.add_scan_empty
+                !state.scanning && state.scanned && state.results.isEmpty() -> R.string.add_scan_none
+                else -> R.string.add_scan_body
+            }
             Text(
-                stringResource(if (available) R.string.add_pair_body else R.string.add_pair_unavailable),
+                stringResource(body),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (state.scanning) {
+                Spacer(Modifier.height(20.dp))
+                LinearWavyProgressIndicator(Modifier.fillMaxWidth())
+            }
             Spacer(Modifier.height(20.dp))
-            Button(
-                enabled = available && bluetoothReady,
-                onClick = onStart,
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                contentPadding = ButtonDefaults.ContentPadding,
-            ) {
-                Text(stringResource(R.string.add_pair_button), style = MaterialTheme.typography.titleMedium)
+            if (state.scanning) {
+                OutlinedButton(
+                    onClick = onStop,
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    contentPadding = ButtonDefaults.ContentPadding,
+                ) {
+                    Text(stringResource(R.string.add_scan_stop), style = MaterialTheme.typography.titleMedium)
+                }
+            } else {
+                Button(
+                    enabled = state.bluetooth != BluetoothStatus.Off,
+                    onClick = onScan,
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    contentPadding = ButtonDefaults.ContentPadding,
+                ) {
+                    Text(
+                        stringResource(if (state.scanned) R.string.add_scan_again else R.string.add_scan_button),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun ScanSection(
-    state: AddDeviceUiState,
-    onScan: () -> Unit,
-    onStop: () -> Unit,
-    onAdd: (ScannedDevice) -> Unit,
-) {
+private fun ScanResults(state: AddDeviceUiState, onAdd: (ScannedDevice) -> Unit) {
+    if (state.results.isEmpty()) return
     Column(Modifier.padding(horizontal = 8.dp)) {
-        Text(stringResource(R.string.add_scan_title), style = MaterialTheme.typography.titleLarge)
-        Spacer(Modifier.height(4.dp))
-        Text(
-            stringResource(R.string.add_scan_body),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(12.dp))
-        if (state.scanning) {
-            FilledTonalButton(onClick = onStop) { Text(stringResource(R.string.add_scan_stop)) }
-            Spacer(Modifier.height(16.dp))
-            LinearWavyProgressIndicator(Modifier.fillMaxWidth())
-            if (state.results.isEmpty()) {
-                Spacer(Modifier.height(12.dp))
-                Text(stringResource(R.string.add_scan_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        } else {
-            FilledTonalButton(onClick = onScan, enabled = state.bluetooth != BluetoothStatus.Off) {
-                Text(stringResource(R.string.add_scan_button))
-            }
-        }
-        Spacer(Modifier.height(8.dp))
         state.results.forEach { device ->
             val knownAs = state.known[device.address]
             ListItem(
@@ -344,7 +331,6 @@ private fun MessageCard(message: AddMessage, onDismiss: () -> Unit, onOpenSettin
         AddMessage.ScanPermissionDenied -> stringResource(R.string.add_scan_permission)
         AddMessage.BluetoothOff -> stringResource(R.string.home_bluetooth_off_body)
         is AddMessage.ScanFailed -> stringResource(R.string.add_message_scan_failed)
-        is AddMessage.PairingFailed -> stringResource(R.string.add_message_pairing_failed, message.reason)
     }
     val isError = message !is AddMessage.AlreadyAdded
     Card(

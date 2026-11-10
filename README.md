@@ -14,13 +14,13 @@ The usual store app for these strips is large, slow and full of ads. It sends a 
 | Permissions | 16 | Bluetooth, microphone, camera and notifications only |
 | Ads and analytics | yes | none, no internet permission |
 | Commands | 1 every 2 seconds, after a "Set" tap | up to 28 a second, live |
-| Connection | scan and connect for each command | paired once, kept open |
+| Connection | scan and connect for each command | added once, kept open |
 
 ## Control your strips
 
 You can:
 
-- pair a strip once with the system pairing sheet, then reconnect on every launch
+- add a strip once from the app's own scan, then reconnect on every launch
 - change colour live while you drag the colour wheel
 - control several strips at once with groups
 - set power, brightness, white presets and built-in effects with their speed
