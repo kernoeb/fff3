@@ -73,6 +73,14 @@ Download `fff3-<version>.apk` from the [releases page](https://github.com/kernoe
 
 To build it yourself, you need JDK 17 to 25 and the Android SDK. Then run `./gradlew :app:assembleRelease`. Your build is signed with your own debug key, so it does not install over a release APK.
 
+## On the Mac
+
+A native Mac version lives in [macos/](macos). It controls the same strips over Bluetooth, and makes them follow the music the Mac plays or the room hears. Beat lock gives the same results as on Android. You need macOS 14.2 or later to sync with the Mac's own sound.
+
+![The Mac app with 2 strips connected and music sync locked on the beat at 97 BPM](docs/macos.png)
+
+To build it, run `./build.sh` in `macos/`. See [macos/README.md](macos/README.md) for what it does and what it does not do yet.
+
 ## For developers
 
 Read [CLAUDE.md](CLAUDE.md) and [ARCHITECTURE.md](ARCHITECTURE.md) before you change code. They cover decisions already made, the build, releases, signing and the tools to test Beat lock on real songs.

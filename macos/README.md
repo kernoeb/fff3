@@ -2,6 +2,8 @@
 
 A native Mac version of fff3: control your ELK-BLEDOM and MELK strips over Bluetooth, and make them follow the music this Mac plays or the room hears. SwiftUI, Swift 6, macOS 14 or later. It has no dependencies and no Xcode project.
 
+![The Mac app with 2 strips connected and music sync locked on the beat at 97 BPM](../docs/macos.png)
+
 ## Build and run
 
 ```sh
