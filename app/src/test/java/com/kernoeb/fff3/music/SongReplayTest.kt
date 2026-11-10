@@ -26,15 +26,22 @@ class SongReplayTest {
         val renderer = LightRenderer()
         val hop = FloatArray(analyzer.hopSize)
         val dt = analyzer.hopSize / 48_000f
+        // FFF3_DOUBLE_AT=30 presses ×2 at 30 s, as the user would.
+        val doubleAt = System.getenv("FFF3_DOUBLE_AT")?.toDouble()
+        var doubled = false
         var second = 0
         var peak = 0
         var low = 255
         var edges = 0
         var locks = 0
-        println("time bpm state energy peak low beats")
+        println("time bpm state energy peak low beats heard conf support")
         while (samples.remaining() >= hop.size) {
             samples.get(hop)
             val frame = analyzer.process(hop)
+            if (doubleAt != null && !doubled && tracker.time >= doubleAt) {
+                tracker.scaleTempo(2.0)
+                doubled = true
+            }
             tracker.process(frame.onset, frame.rms, frame.rawBass, frame.rawMid, frame.rawTreble)
             val color = renderer.render(frame, MusicStyle.BeatLock, dt, tracker, 0.0, BeatColors.Tempo)
             val bright = maxOf(color.red, color.green, color.blue)
@@ -48,8 +55,9 @@ class SongReplayTest {
             if (tracker.time >= second + 1) {
                 println(
                     String.format(
-                        Locale.ROOT, "%4d %5d %-9s %.2f %3d %3d %d",
+                        Locale.ROOT, "%4d %5d %-9s %.2f %3d %3d %d %5.1f %.2f %.2f",
                         second, tracker.displayBpm, tracker.state, renderer.songEnergy, peak, low, edges,
+                        tracker.heardBpm, tracker.heardConfidence, tracker.lockedSupport,
                     ),
                 )
                 second++

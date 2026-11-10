@@ -93,7 +93,9 @@ class BeatTracker(
         private set
 
     private var estimateConfidence = 0f
-    private var lockedSupport = 0f
+    /** How strongly the window hears the locked tempo, 0..1. */
+    var lockedSupport = 0f
+        private set
     private var previousEstimate = 0f
     private var challenger = 0f
     private var fastCandidate = 0f
@@ -594,7 +596,7 @@ class BeatTracker(
         const val PREFERRED_BPM = 120f
         const val PRIOR_OCTAVES = 1f
         const val MIN_ENERGY = 0.025f * 0.025f
-        const val ACQUIRE_CONFIDENCE = 0.1f
+        const val ACQUIRE_CONFIDENCE = 0.2f
         const val CONSISTENT = 0.02f
         val RATIOS = floatArrayOf(1f, 2f, 0.5f, 1.5f, 2f / 3f, 4f / 3f, 0.75f)
         const val SAME_TEMPO = 0.03f
